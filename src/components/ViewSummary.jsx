@@ -13,51 +13,69 @@ function parseTime(timeStr) {
   return total;
 }
 
-function getWeekKey(dateStr) {
+function parseDate(dateStr) {
   const parts = dateStr.split('/');
-  if (parts.length !== 3) return 'Unknown';
-  const d = new Date(+parts[2], +parts[0] - 1, +parts[1]);
-  const startOfYear = new Date(d.getFullYear(), 0, 1);
-  const weekNum = Math.ceil(((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
-  return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+  if (parts.length !== 3) return null;
+  return new Date(+parts[2], +parts[0] - 1, +parts[1]);
+}
+
+function getWeekBounds(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - ((day + 6) % 7));
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return { monday, sunday };
+}
+
+function formatDateShort(d) {
+  return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
 }
 
 export default function ViewSummary({ onDone }) {
-  const [mode, setMode] = useState('daily'); // daily | weekly
+  const [mode, setMode] = useState('daily');
   const tasks = useMemo(() => loadTasks(), []);
 
-  const dates = useMemo(() => {
+  const dailyGroups = useMemo(() => {
     const map = {};
     for (const t of tasks) {
-      const key = mode === 'daily' ? t.date : getWeekKey(t.date);
-      if (!map[key]) map[key] = [];
-      map[key].push(t);
+      if (!map[t.date]) map[t.date] = [];
+      map[t.date].push(t);
     }
     return Object.keys(map).sort().reverse().map(key => ({
       key,
       tasks: map[key],
       total: map[key].reduce((sum, t) => sum + parseTime(t.timeSpent), 0),
     }));
-  }, [tasks, mode]);
+  }, [tasks]);
 
-  const [index, setIndex] = useState(0);
+  const weeklyTasks = useMemo(() => {
+    const { monday, sunday } = getWeekBounds(new Date());
+    const filtered = tasks.filter(t => {
+      const d = parseDate(t.date);
+      return d && d >= monday && d <= sunday;
+    });
+    const total = filtered.reduce((sum, t) => sum + parseTime(t.timeSpent), 0);
+    return {
+      label: `${formatDateShort(monday)} – ${formatDateShort(sunday)}`,
+      tasks: filtered,
+      total,
+    };
+  }, [tasks]);
 
   useInput((ch, key) => {
     if (key.escape) {
       onDone();
       return;
     }
-    if (key.leftArrow || ch === 'h') {
-      setIndex(i => Math.max(0, i - 1));
-    }
-    if (key.rightArrow || ch === 'l') {
-      setIndex(i => Math.min(dates.length - 1, i + 1));
-    }
     if (ch === 'd') setMode('daily');
     if (ch === 'w') setMode('weekly');
   });
 
-  if (dates.length === 0) {
+  if (tasks.length === 0) {
     return (
       <Box flexDirection="column">
         <Text>No tasks found. Press Escape to go back.</Text>
@@ -65,24 +83,38 @@ export default function ViewSummary({ onDone }) {
     );
   }
 
-  const current = dates[Math.min(index, dates.length - 1)];
+  if (mode === 'weekly') {
+    return (
+      <Box flexDirection="column">
+        <Text bold>Weekly Summary</Text>
+        <Text dimColor>d = daily | w = weekly | Escape = back</Text>
+
+        <Box marginTop={1} flexDirection="column">
+          <Text bold color="yellow">
+            {weeklyTasks.label} — {weeklyTasks.total.toFixed(1)}h total ({weeklyTasks.tasks.length} tasks)
+          </Text>
+          {weeklyTasks.tasks.length > 0
+            ? <TaskTable tasks={weeklyTasks.tasks} />
+            : <Text color="gray">No tasks this week.</Text>
+          }
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column">
-      <Text bold>
-        {mode === 'daily' ? 'Daily' : 'Weekly'} Summary
-        <Text dimColor> ({index + 1}/{dates.length})</Text>
-      </Text>
-      <Text dimColor>
-        ← → navigate | d = daily | w = weekly | Escape = back
-      </Text>
+      <Text bold>Daily Summary</Text>
+      <Text dimColor>d = daily | w = weekly | Escape = back</Text>
 
-      <Box marginTop={1} flexDirection="column">
-        <Text bold color="yellow">
-          {current.key} — {current.total.toFixed(1)}h total ({current.tasks.length} tasks)
-        </Text>
-        <TaskTable tasks={current.tasks} />
-      </Box>
+      {dailyGroups.map(group => (
+        <Box key={group.key} marginTop={1} flexDirection="column">
+          <Text bold color="yellow">
+            {group.key} — {group.total.toFixed(1)}h total ({group.tasks.length} tasks)
+          </Text>
+          <TaskTable tasks={group.tasks} />
+        </Box>
+      ))}
     </Box>
   );
 }

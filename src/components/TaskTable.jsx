@@ -1,7 +1,9 @@
 import React from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 
-const COL = { date: 12, type: 6, number: 8, name: 30, timeSpent: 8, comments: 20 };
+const FIXED = { date: 12, type: 6, number: 8, timeSpent: 8 };
+const MIN_NAME = 10;
+const MIN_COMMENTS = 5;
 
 function pad(str, len) {
   const s = String(str || '');
@@ -9,30 +11,38 @@ function pad(str, len) {
 }
 
 export default function TaskTable({ tasks, showIndex = false }) {
+  const { stdout } = useStdout();
+  const width = stdout?.columns || 80;
+
   if (!tasks || tasks.length === 0) {
     return <Text color="gray">No tasks to display.</Text>;
   }
 
+  const fixedWidth = FIXED.date + FIXED.type + FIXED.number + FIXED.timeSpent + (showIndex ? 4 : 0);
+  const remaining = Math.max(MIN_NAME + MIN_COMMENTS, width - fixedWidth);
+  const nameWidth = Math.floor(remaining * 0.65);
+  const commentsWidth = remaining - nameWidth;
+
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width={width}>
       <Text bold color="cyan">
         {showIndex ? pad('#', 4) : ''}
-        {pad('Date', COL.date)}
-        {pad('Type', COL.type)}
-        {pad('Number', COL.number)}
-        {pad('Name', COL.name)}
-        {pad('Time', COL.timeSpent)}
-        {pad('Comments', COL.comments)}
+        {pad('Date', FIXED.date)}
+        {pad('Type', FIXED.type)}
+        {pad('Number', FIXED.number)}
+        {pad('Name', nameWidth)}
+        {pad('Time', FIXED.timeSpent)}
+        {pad('Comments', commentsWidth)}
       </Text>
       {tasks.map((t, i) => (
         <Text key={i}>
           {showIndex ? pad(String(i + 1), 4) : ''}
-          {pad(t.date, COL.date)}
-          {pad(t.type, COL.type)}
-          {pad(t.number, COL.number)}
-          {pad(t.name, COL.name)}
-          {pad(t.timeSpent, COL.timeSpent)}
-          {pad(t.comments, COL.comments)}
+          {pad(t.date, FIXED.date)}
+          {pad(t.type, FIXED.type)}
+          {pad(t.number, FIXED.number)}
+          {pad(t.name, nameWidth)}
+          {pad(t.timeSpent, FIXED.timeSpent)}
+          {pad(t.comments, commentsWidth)}
         </Text>
       ))}
     </Box>
