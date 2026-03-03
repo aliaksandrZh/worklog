@@ -100,7 +100,7 @@ export default function PasteTasks({ onDone, onMessage }) {
   function findNextFill(tasks, fromTask, fromField) {
     for (let t = fromTask; t < tasks.length; t++) {
       const missing = tasks[t].missing || [];
-      const required = missing.filter(f => f !== 'timeSpent');
+      const required = missing.filter(f => f !== 'timeSpent' && f !== 'date');
       const startF = t === fromTask ? fromField : 0;
       for (let f = startF; f < required.length; f++) {
         return { task: t, field: f };
