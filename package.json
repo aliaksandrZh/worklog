@@ -1,0 +1,19 @@
+{
+  "name": "task-tracker",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.js",
+    "test": "tsx --test tests/*.test.js"
+  },
+  "dependencies": {
+    "ink": "^5.0.0",
+    "ink-text-input": "^6.0.0",
+    "ink-select-input": "^6.0.0",
+    "react": "^18.2.0",
+    "papaparse": "^5.5.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0"
+  }
+}
