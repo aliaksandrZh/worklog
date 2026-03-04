@@ -2,3 +2,4 @@ node_modules/
 tasks.csv
 .test-tmp/
 .DS_Store
+.timer.json

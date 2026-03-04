@@ -2,8 +2,11 @@
   "name": "task-tracker",
   "version": "1.0.0",
   "type": "module",
+  "bin": {
+    "tt": "./src/cli.js"
+  },
   "scripts": {
-    "start": "tsx src/index.js",
+    "start": "tsx src/cli.js",
     "test": "tsx --test tests/*.test.js"
   },
   "dependencies": {

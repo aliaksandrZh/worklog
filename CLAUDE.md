@@ -11,8 +11,21 @@ A terminal UI app for tracking daily work tasks (bugs, tasks) with time spent. R
 
 ## Commands
 
-- `npm start` — run the app
+- `npm start` — run the app (TUI menu, or pass subcommands)
 - `npm test` — run all tests (uses built-in `node:test`, no extra deps)
+
+### CLI Subcommands
+
+```bash
+tt                              # → TUI menu (no args)
+tt add Bug 12345: Fix login 1h  # → instant add, done
+tt paste                        # → reads clipboard, parses, saves
+tt today                        # → prints today's tasks
+tt week                         # → prints current week's tasks
+tt start Bug 123: Fix login     # → starts timer
+tt stop                         # → stops timer, saves task with elapsed time
+tt status                       # → shows what's being timed
+```
 
 ## Project Structure
 
@@ -24,6 +37,9 @@ task-tracker/
 │   ├── store.js              # CSV CRUD (load, save, add, update, delete)
 │   ├── parser.js             # Lenient paste-format parser
 │   ├── utils.js              # Shared utilities (parseTime, parseDate, groupByDate, etc.)
+│   ├── format.js             # Plain-text table formatter (shared by CLI and TaskTable)
+│   ├── timer.js              # Timer persistence (.timer.json) for start/stop/status
+│   ├── cli.js                # CLI router — entry point with subcommands
 │   └── components/
 │       ├── MainMenu.jsx      # Main menu (Add, Paste, Summary, Edit/Delete, Exit)
 │       ├── AddTask.jsx       # Sequential single-task form
@@ -36,7 +52,10 @@ task-tracker/
 │   ├── patterns.test.js      # Unit tests for each pattern group
 │   ├── parser.test.js        # Integration tests for parsePastedText
 │   ├── store.test.js         # CSV CRUD tests
-│   └── utils.test.js         # Utility function tests (parseTime, parseDate, groupByDate, etc.)
+│   ├── utils.test.js         # Utility function tests (parseTime, parseDate, groupByDate, etc.)
+│   ├── format.test.js        # Table formatter tests
+│   ├── timer.test.js         # Timer start/stop/status tests
+│   └── cli.test.js           # CLI subcommand integration tests
 ├── package.json
 └── .gitignore
 ```
@@ -70,6 +89,18 @@ To add new patterns, append to the relevant array in `parser.js` and add tests i
 
 Three phases: `input` → `fill` → `preview`. After parsing, if any required fields are missing (type, number, name — not timeSpent which is optional), the user is prompted to fill them before saving.
 
+### CLI Router (`cli.js`)
+
+Entry point for both TUI and CLI. No args → launches TUI via `import('./index.js')`. Subcommands (`add`, `paste`, `today`, `week`, `start`, `stop`, `status`) use plain console.log + process.exit, no Ink needed.
+
+### Timer (`timer.js`)
+
+Persists running timer to `.timer.json` in cwd. Functions: `startTimer`, `stopTimer`, `getTimerStatus`, `formatElapsed`.
+
+### Format (`format.js`)
+
+Plain-text table formatter shared between CLI output and `TaskTable.jsx`. Exports `pad`, `FIXED`, `MIN_NAME`, `MIN_COMMENTS`, `formatTable`.
+
 ### Store (`store.js`)
 
 Synchronous CSV read/write using `papaparse`. Values are trimmed on load. All functions: `loadTasks`, `saveTasks`, `addTask`, `addTasks`, `updateTask`, `deleteTask`.
@@ -82,6 +113,9 @@ Tests use Node.js built-in `node:test` + `node:assert/strict`, run via `tsx`.
 - `parser.test.js` — tests `parsePastedText` end-to-end (full format, partial format, mixed blocks, date handling)
 - `store.test.js` — tests CSV CRUD in a temp directory
 - `utils.test.js` — tests parseTime, parseDate, getWeekBounds, formatDateShort, groupByDate
+- `format.test.js` — tests formatTable output, truncation, width
+- `timer.test.js` — tests startTimer, stopTimer, getTimerStatus, formatElapsed
+- `cli.test.js` — integration tests for CLI subcommands (add, today, week, timer lifecycle)
 
 ## Rules
 

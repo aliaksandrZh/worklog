@@ -15,7 +15,10 @@ export default function App() {
     setTimeout(() => setMessage(''), 3000);
   };
 
-  const goHome = () => setScreen('menu');
+  const clearScreen = () => process.stdout.write('\x1B[2J\x1B[H');
+
+  const goHome = () => { clearScreen(); setScreen('menu'); };
+  const navigate = (s) => { clearScreen(); setScreen(s); };
 
   return (
     <Box flexDirection="column" padding={1}>
@@ -26,7 +29,7 @@ export default function App() {
       {message ? <Text color="green">{message}</Text> : null}
 
       <Box marginTop={1}>
-        {screen === 'menu' && <MainMenu onSelect={setScreen} />}
+        {screen === 'menu' && <MainMenu onSelect={navigate} />}
         {screen === 'add' && <AddTask onDone={goHome} onMessage={showMessage} />}
         {screen === 'paste' && <PasteTasks onDone={goHome} onMessage={showMessage} />}
         {screen === 'summary' && <ViewSummary onDone={goHome} />}

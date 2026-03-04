@@ -15,8 +15,8 @@ export default function ViewSummary({ onDone }) {
       onDone();
       return;
     }
-    if (ch === 'd') setMode('daily');
-    if (ch === 'w') setMode('weekly');
+    if (ch === 'd' && mode !== 'daily') { process.stdout.write('\x1B[2J\x1B[H'); setMode('daily'); }
+    if (ch === 'w' && mode !== 'weekly') { process.stdout.write('\x1B[2J\x1B[H'); setMode('weekly'); }
   });
 
   if (tasks.length === 0) {
