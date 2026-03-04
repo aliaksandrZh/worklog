@@ -7,19 +7,27 @@ export const SHORTCUTS = {
   p: 'paste',
   s: 'summary',
   e: 'edit',
+  t: 'timer',
   q: 'exit',
 };
 
-const items = [
+const baseItems = [
   { label: '(a) Add Task', value: 'add' },
   { label: '(p) Paste Tasks', value: 'paste' },
   { label: '(s) View Summary', value: 'summary' },
   { label: '(e) Edit / Delete', value: 'edit' },
-  { label: '(q) Exit', value: 'exit' },
 ];
 
-export default function MainMenu({ onSelect }) {
+export function getMenuItems(timerRunning) {
+  const timerItem = timerRunning
+    ? { label: '(t) Stop Timer', value: 'timer-stop' }
+    : { label: '(t) Start Timer', value: 'timer-start' };
+  return [...baseItems, timerItem, { label: '(q) Exit', value: 'exit' }];
+}
+
+export default function MainMenu({ onSelect, timerRunning }) {
   const { exit } = useApp();
+  const items = getMenuItems(timerRunning);
 
   const handleAction = (value) => {
     if (value === 'exit') {
@@ -30,8 +38,12 @@ export default function MainMenu({ onSelect }) {
   };
 
   useInput((ch) => {
+    if (ch === 't') {
+      handleAction(timerRunning ? 'timer-stop' : 'timer-start');
+      return;
+    }
     const value = SHORTCUTS[ch];
-    if (value) {
+    if (value && value !== 'timer') {
       handleAction(value);
     }
   });

@@ -4,6 +4,7 @@ import TextInput from 'ink-text-input';
 import { parsePastedText } from '../parser.js';
 import { addTasks } from '../store.js';
 import TaskTable from './TaskTable.jsx';
+import BorderedInput from './BorderedInput.jsx';
 
 const FIELD_LABELS = {
   date: 'Date (M/D/YYYY)',
@@ -15,7 +16,6 @@ const FIELD_LABELS = {
 
 export default function PasteTasks({ onDone, onMessage }) {
   const [phase, setPhase] = useState('input'); // input | fill | preview
-  const [lines, setLines] = useState([]);
   const [parsed, setParsed] = useState([]);
   // fill phase: which task and which missing field we're on
   const [fillTaskIdx, setFillTaskIdx] = useState(0);
@@ -23,47 +23,6 @@ export default function PasteTasks({ onDone, onMessage }) {
   const [input, setInput] = useState('');
 
   useInput((ch, key) => {
-    if (phase === 'input') {
-      if (key.escape) {
-        const text = lines.join('\n');
-        const tasks = parsePastedText(text);
-        if (tasks.length === 0) {
-          onMessage('No tasks parsed. Check format.');
-          onDone();
-          return;
-        }
-        setParsed(tasks);
-        startFillOrPreview(tasks);
-        return;
-      }
-      if (key.return) {
-        setLines(prev => [...prev, '']);
-        return;
-      }
-      if (key.backspace || key.delete) {
-        setLines(prev => {
-          if (prev.length === 0) return prev;
-          const copy = [...prev];
-          const last = copy[copy.length - 1];
-          if (last === '' && copy.length > 1) {
-            copy.pop();
-          } else {
-            copy[copy.length - 1] = last.slice(0, -1);
-          }
-          return copy;
-        });
-        return;
-      }
-      if (ch && !key.ctrl && !key.meta) {
-        setLines(prev => {
-          if (prev.length === 0) return [ch];
-          const copy = [...prev];
-          copy[copy.length - 1] = (copy[copy.length - 1] || '') + ch;
-          return copy;
-        });
-      }
-    }
-
     if (phase === 'fill') {
       if (key.escape) {
         onDone();
@@ -82,6 +41,17 @@ export default function PasteTasks({ onDone, onMessage }) {
       }
     }
   });
+
+  const handlePasteSubmit = (text) => {
+    const tasks = parsePastedText(text);
+    if (tasks.length === 0) {
+      onMessage('No tasks parsed. Check format.');
+      onDone();
+      return;
+    }
+    setParsed(tasks);
+    startFillOrPreview(tasks);
+  };
 
   function startFillOrPreview(tasks) {
     // Find first task with non-timeSpent missing fields
@@ -136,13 +106,10 @@ export default function PasteTasks({ onDone, onMessage }) {
     return (
       <Box flexDirection="column">
         <Text bold>Paste Tasks</Text>
-        <Text dimColor>Type or paste your tasks. Press Escape when done.</Text>
+        <Text dimColor>Type or paste your task. Enter=submit, Escape=cancel</Text>
         <Text dimColor>Accepts various formats — missing fields will be prompted.</Text>
-        <Box marginTop={1} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1}>
-          {lines.length === 0
-            ? <Text color="gray">Start typing...</Text>
-            : lines.map((line, i) => <Text key={i}>{line || ' '}</Text>)
-          }
+        <Box marginTop={1}>
+          <BorderedInput onSubmit={handlePasteSubmit} onCancel={onDone} />
         </Box>
       </Box>
     );
