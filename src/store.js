@@ -5,6 +5,26 @@ import Papa from 'papaparse';
 const CSV_PATH = path.join(process.cwd(), 'tasks.csv');
 const HEADERS = ['date', 'type', 'number', 'name', 'timeSpent', 'comments'];
 
+function todayStr() {
+  const d = new Date();
+  return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+}
+
+export function isValidDate(str) {
+  if (!str) return false;
+  const parts = str.split('/');
+  if (parts.length !== 3) return false;
+  const [m, d, y] = parts.map(Number);
+  return m >= 1 && m <= 12 && d >= 1 && d <= 31 && y >= 2000;
+}
+
+function ensureDate(task) {
+  if (!isValidDate(task.date)) {
+    return { ...task, date: todayStr() };
+  }
+  return task;
+}
+
 function ensureFile() {
   if (!fs.existsSync(CSV_PATH)) {
     fs.writeFileSync(CSV_PATH, HEADERS.join(',') + '\n', 'utf8');
@@ -31,13 +51,13 @@ export function saveTasks(tasks) {
 
 export function addTask(task) {
   const tasks = loadTasks();
-  tasks.push(task);
+  tasks.push(ensureDate(task));
   saveTasks(tasks);
 }
 
 export function addTasks(newTasks) {
   const tasks = loadTasks();
-  tasks.push(...newTasks);
+  tasks.push(...newTasks.map(ensureDate));
   saveTasks(tasks);
 }
 

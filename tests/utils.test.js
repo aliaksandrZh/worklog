@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseTime, parseDate, getWeekBounds, formatDateShort, groupByDate } from '../src/utils.js';
+import { parseTime, parseDate, getWeekBounds, formatDateShort, groupByDate, filterWeekByOffset } from '../src/utils.js';
 
 describe('parseTime', () => {
   it('returns 0 for empty string', () => {
@@ -125,5 +125,39 @@ describe('groupByDate', () => {
 
   it('returns empty array for no tasks', () => {
     assert.deepEqual(groupByDate([]), []);
+  });
+});
+
+describe('filterWeekByOffset', () => {
+  // Create tasks spanning multiple weeks
+  const tasks = [
+    { date: '3/2/2026', type: 'Bug', number: '1', name: 'A', timeSpent: '1h', comments: '' },
+    { date: '3/3/2026', type: 'Task', number: '2', name: 'B', timeSpent: '2h', comments: '' },
+    { date: '2/23/2026', type: 'Bug', number: '3', name: 'C', timeSpent: '30m', comments: '' },
+  ];
+
+  it('offset 0 returns current week (same as filterCurrentWeek)', () => {
+    const result = filterWeekByOffset(tasks, 0);
+    assert.ok(result.label);
+    assert.ok(Array.isArray(result.tasks));
+    assert.equal(typeof result.total, 'number');
+  });
+
+  it('negative offset returns earlier week', () => {
+    const current = filterWeekByOffset(tasks, 0);
+    const prev = filterWeekByOffset(tasks, -1);
+    // Labels should be different
+    assert.notEqual(current.label, prev.label);
+  });
+
+  it('returns empty tasks for week with no data', () => {
+    const farPast = filterWeekByOffset(tasks, -100);
+    assert.equal(farPast.tasks.length, 0);
+    assert.equal(farPast.total, 0);
+  });
+
+  it('label contains date range', () => {
+    const result = filterWeekByOffset(tasks, 0);
+    assert.ok(result.label.includes('–'));
   });
 });

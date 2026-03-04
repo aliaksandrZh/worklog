@@ -44,7 +44,13 @@ export function groupByDate(tasks) {
 }
 
 export function filterCurrentWeek(tasks) {
-  const { monday, sunday } = getWeekBounds(new Date());
+  return filterWeekByOffset(tasks, 0);
+}
+
+export function filterWeekByOffset(tasks, offset) {
+  const ref = new Date();
+  ref.setDate(ref.getDate() + offset * 7);
+  const { monday, sunday } = getWeekBounds(ref);
   const filtered = tasks.filter(t => {
     const d = parseDate(t.date);
     return d && d >= monday && d <= sunday;

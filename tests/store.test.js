@@ -108,4 +108,57 @@ describe('store', () => {
     const tasks = loadTasks();
     assert.equal(tasks.length, 1);
   });
+
+  it('defaults to today when date is missing', async () => {
+    const { addTask, loadTasks } = await getStore();
+    addTask({ date: '', type: 'Bug', number: '1', name: 'A', timeSpent: '1h', comments: '' });
+    const tasks = loadTasks();
+    const d = new Date();
+    const today = `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+    assert.equal(tasks[0].date, today);
+  });
+
+  it('defaults to today when date is invalid', async () => {
+    const { addTask, loadTasks } = await getStore();
+    addTask({ date: 'Task 123: Fix login', type: 'Bug', number: '1', name: 'A', timeSpent: '1h', comments: '' });
+    const tasks = loadTasks();
+    const d = new Date();
+    const today = `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+    assert.equal(tasks[0].date, today);
+  });
+
+  it('keeps valid date as-is', async () => {
+    const { addTask, loadTasks } = await getStore();
+    addTask({ date: '3/3/2026', type: 'Bug', number: '1', name: 'A', timeSpent: '1h', comments: '' });
+    const tasks = loadTasks();
+    assert.equal(tasks[0].date, '3/3/2026');
+  });
+});
+
+describe('isValidDate', () => {
+  it('accepts valid M/D/YYYY', async () => {
+    const { isValidDate } = await getStore();
+    assert.ok(isValidDate('3/5/2026'));
+    assert.ok(isValidDate('12/25/2026'));
+  });
+
+  it('rejects empty/null', async () => {
+    const { isValidDate } = await getStore();
+    assert.ok(!isValidDate(''));
+    assert.ok(!isValidDate(null));
+    assert.ok(!isValidDate(undefined));
+  });
+
+  it('rejects non-date strings', async () => {
+    const { isValidDate } = await getStore();
+    assert.ok(!isValidDate('Task 123: Fix login'));
+    assert.ok(!isValidDate('not a date'));
+  });
+
+  it('rejects out-of-range values', async () => {
+    const { isValidDate } = await getStore();
+    assert.ok(!isValidDate('13/1/2026'));
+    assert.ok(!isValidDate('0/1/2026'));
+    assert.ok(!isValidDate('1/32/2026'));
+  });
 });
