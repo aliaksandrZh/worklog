@@ -1,4 +1,4 @@
-# Task Tracker TUI
+# Worklog TUI
 
 A terminal UI app for tracking daily work tasks (bugs, tasks) with time spent. Replaces plain-text tracking with a proper interface supporting paste, summaries, and editing.
 

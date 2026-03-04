@@ -6,7 +6,7 @@
 #   bash install.sh
 set -euo pipefail
 
-echo "=== Task Tracker CLI Installer ==="
+echo "=== Worklog CLI Installer ==="
 echo
 
 # 1. Check Node.js

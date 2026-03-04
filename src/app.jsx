@@ -62,7 +62,7 @@ export default function App() {
   return (
     <Box flexDirection="column" padding={1}>
       <Text bold color="cyan">{'━'.repeat(40)}</Text>
-      <Text bold color="cyan">  Task Tracker</Text>
+      <Text bold color="cyan">  Worklog</Text>
       <Text bold color="cyan">{'━'.repeat(40)}</Text>
 
       {timerInfo && (

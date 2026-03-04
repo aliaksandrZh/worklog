@@ -1,5 +1,5 @@
 @echo off
-echo === Task Tracker CLI Installer ===
+echo === Worklog CLI Installer ===
 echo.
 
 REM 1. Check Node.js

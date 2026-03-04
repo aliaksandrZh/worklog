@@ -1,4 +1,4 @@
-# Task Tracker
+# Worklog
 
 [![Tests](https://github.com/aliaksandrZh/task-tracker/actions/workflows/test.yml/badge.svg)](https://github.com/aliaksandrZh/task-tracker/actions/workflows/test.yml)
 
