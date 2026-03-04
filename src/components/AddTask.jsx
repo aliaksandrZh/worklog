@@ -12,8 +12,8 @@ const FIELDS = [
   { key: 'type', label: 'Type (Bug/Task)' },
   { key: 'number', label: 'Number' },
   { key: 'name', label: 'Name' },
-  { key: 'timeSpent', label: 'Time Spent (e.g. 1h, 30m)' },
-  { key: 'comments', label: 'Comments (optional)' },
+  { key: 'timeSpent', label: 'Time Spent? (e.g. 1h, 30m)' },
+  { key: 'comments', label: 'Comments?' },
 ];
 
 export default function AddTask({ onDone, onMessage }) {
@@ -53,12 +53,12 @@ export default function AddTask({ onDone, onMessage }) {
     }
   };
 
-  const defaultHint = field.defaultFn ? ` [default: ${field.defaultFn()}]` : '';
+  const defaultHint = field.defaultFn ? ` [${field.defaultFn()}]` : '';
 
   return (
     <Box flexDirection="column">
       <Text bold>Add Task</Text>
-      <Text dimColor>Escape=cancel | Backspace on empty=go back</Text>
+      <Text dimColor>Escape=cancel | Backspace on empty=go back | ?=optional</Text>
 
       {Object.entries(values).map(([k, v]) => (
         <Text key={k} color="gray">{k}: {v}</Text>

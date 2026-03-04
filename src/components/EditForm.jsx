@@ -6,6 +6,15 @@ import { goBack } from '../formNav.js';
 
 const FIELDS = ['date', 'type', 'number', 'name', 'timeSpent', 'comments'];
 
+const FIELD_LABELS = {
+  date: 'date',
+  type: 'type',
+  number: 'number',
+  name: 'name',
+  timeSpent: 'timeSpent?',
+  comments: 'comments?',
+};
+
 export default function EditForm({ task, taskIndex, onDone, onMessage }) {
   const [step, setStep] = useState(0);
   const [values, setValues] = useState({ ...task });
@@ -47,14 +56,14 @@ export default function EditForm({ task, taskIndex, onDone, onMessage }) {
   return (
     <Box flexDirection="column">
       <Text bold>Edit Task</Text>
-      <Text dimColor>Escape=cancel | Enter=keep value | Backspace on empty=go back</Text>
+      <Text dimColor>Escape=cancel | Enter=keep value | Backspace on empty=go back | ?=optional</Text>
 
       {FIELDS.slice(0, step).map(k => (
         <Text key={k} color="gray">{k}: {values[k]}</Text>
       ))}
 
       <Box marginTop={1}>
-        <Text color="yellow">{field} [{values[field] || ''}]: </Text>
+        <Text color="yellow">{FIELD_LABELS[field] || field} [{values[field] || ''}]: </Text>
         <TextInput value={input} onChange={setInput} onSubmit={handleSubmit} />
       </Box>
     </Box>
