@@ -107,7 +107,10 @@ export default function PasteTasks({ onDone, onMessage }) {
       <Box flexDirection="column">
         <Text bold>Paste Tasks</Text>
         <Text dimColor>Type or paste your task. Enter=submit, Escape=cancel</Text>
-        <Text dimColor>Accepts various formats — missing fields will be prompted.</Text>
+        <Text dimColor>Missing fields will be prompted. Examples:</Text>
+        <Text dimColor>  Bug 123: Fix login 1h</Text>
+        <Text dimColor>  Task 456: Add feature 2h 30m</Text>
+        <Text dimColor>  123: Fix crash</Text>
         <Box marginTop={1}>
           <BorderedInput onSubmit={handlePasteSubmit} onCancel={onDone} />
         </Box>
