@@ -8,11 +8,13 @@ import EditDelete from './components/EditDelete.jsx';
 import TimerStart from './components/TimerStart.jsx';
 import { getTimerStatus, stopTimer, formatElapsed } from './timer.js';
 import { addTask } from './store.js';
+import { checkForUpdates } from './updateCheck.js';
 
 export default function App() {
   const [screen, setScreen] = useState('menu');
   const [message, setMessage] = useState('');
   const [timerInfo, setTimerInfo] = useState(null);
+  const [updateAvailable, setUpdateAvailable] = useState(0);
 
   const refreshTimer = () => {
     try {
@@ -25,6 +27,7 @@ export default function App() {
   useEffect(() => {
     refreshTimer();
     const interval = setInterval(refreshTimer, 30000);
+    checkForUpdates().then(setUpdateAvailable).catch(() => {});
     return () => clearInterval(interval);
   }, []);
 
@@ -64,6 +67,10 @@ export default function App() {
       <Text bold color="cyan">{'━'.repeat(40)}</Text>
       <Text bold color="cyan">  Worklog</Text>
       <Text bold color="cyan">{'━'.repeat(40)}</Text>
+
+      {updateAvailable > 0 && (
+        <Text color="yellow">Update available ({updateAvailable} commit{updateAvailable > 1 ? 's' : ''} behind). Run: git pull</Text>
+      )}
 
       {timerInfo && (
         <Text color="magenta">
