@@ -1,6 +1,6 @@
 # Worklog
 
-[![Tests](https://github.com/aliaksandrZh/task-tracker/actions/workflows/test.yml/badge.svg)](https://github.com/aliaksandrZh/task-tracker/actions/workflows/test.yml)
+[![Tests](https://github.com/aliaksandrZh/worklog/actions/workflows/test.yml/badge.svg)](https://github.com/aliaksandrZh/worklog/actions/workflows/test.yml)
 
 A terminal UI for tracking daily work tasks (bugs, tasks) with time spent. Replaces plain-text tracking with a proper interface supporting paste, summaries, editing, and a built-in timer.
 
@@ -13,7 +13,7 @@ A terminal UI for tracking daily work tasks (bugs, tasks) with time spent. Repla
 **macOS / Linux:**
 
 ```bash
-git clone https://github.com/aliaksandrZh/task-tracker.git
+git clone https://github.com/aliaksandrZh/worklog.git
 cd task-tracker
 chmod +x install.sh
 ./install.sh
@@ -22,7 +22,7 @@ chmod +x install.sh
 **Windows:**
 
 ```cmd
-git clone https://github.com/aliaksandrZh/task-tracker.git
+git clone https://github.com/aliaksandrZh/worklog.git
 cd task-tracker
 install.bat
 ```
