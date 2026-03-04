@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import { updateTask } from '../store.js';
+import { goBack } from '../formNav.js';
 
 const FIELDS = ['date', 'type', 'number', 'name', 'timeSpent', 'comments'];
 
@@ -13,6 +14,15 @@ export default function EditForm({ task, taskIndex, onDone, onMessage }) {
   useInput((ch, key) => {
     if (key.escape) {
       onDone();
+      return;
+    }
+    if ((key.backspace || key.delete) && input === '') {
+      const prev = goBack(step, FIELDS, values);
+      if (prev) {
+        setStep(prev.step);
+        setInput(prev.input);
+      }
+      return;
     }
   });
 
@@ -37,7 +47,7 @@ export default function EditForm({ task, taskIndex, onDone, onMessage }) {
   return (
     <Box flexDirection="column">
       <Text bold>Edit Task</Text>
-      <Text dimColor>Press Escape to cancel. Enter to keep current value.</Text>
+      <Text dimColor>Escape=cancel | Enter=keep value | Backspace on empty=go back</Text>
 
       {FIELDS.slice(0, step).map(k => (
         <Text key={k} color="gray">{k}: {values[k]}</Text>

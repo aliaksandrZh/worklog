@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import { addTask } from '../store.js';
+import { goBack } from '../formNav.js';
 
 const FIELDS = [
   { key: 'date', label: 'Date (M/D/YYYY)', defaultFn: () => {
@@ -23,6 +24,15 @@ export default function AddTask({ onDone, onMessage }) {
   useInput((ch, key) => {
     if (key.escape) {
       onDone();
+      return;
+    }
+    if ((key.backspace || key.delete) && input === '') {
+      const prev = goBack(step, FIELDS, values);
+      if (prev) {
+        setStep(prev.step);
+        setInput(prev.input);
+      }
+      return;
     }
   });
 
@@ -48,7 +58,7 @@ export default function AddTask({ onDone, onMessage }) {
   return (
     <Box flexDirection="column">
       <Text bold>Add Task</Text>
-      <Text dimColor>Press Escape to cancel</Text>
+      <Text dimColor>Escape=cancel | Backspace on empty=go back</Text>
 
       {Object.entries(values).map(([k, v]) => (
         <Text key={k} color="gray">{k}: {v}</Text>
