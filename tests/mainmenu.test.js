@@ -7,13 +7,12 @@ describe('MainMenu shortcuts', () => {
     assert.equal(SHORTCUTS.a, 'add');
     assert.equal(SHORTCUTS.p, 'paste');
     assert.equal(SHORTCUTS.s, 'summary');
-    assert.equal(SHORTCUTS.e, 'edit');
     assert.equal(SHORTCUTS.t, 'timer');
     assert.equal(SHORTCUTS.q, 'exit');
   });
 
-  it('has exactly 6 shortcuts', () => {
-    assert.equal(Object.keys(SHORTCUTS).length, 6);
+  it('has exactly 5 shortcuts', () => {
+    assert.equal(Object.keys(SHORTCUTS).length, 5);
   });
 
   it('all shortcut values are unique', () => {
@@ -50,8 +49,8 @@ describe('getMenuItems', () => {
     assert.equal(items[items.length - 1].value, 'exit');
   });
 
-  it('has 6 items total', () => {
-    assert.equal(getMenuItems(false).length, 6);
-    assert.equal(getMenuItems(true).length, 6);
+  it('has 5 items total', () => {
+    assert.equal(getMenuItems(false).length, 5);
+    assert.equal(getMenuItems(true).length, 5);
   });
 });

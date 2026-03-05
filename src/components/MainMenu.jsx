@@ -6,7 +6,6 @@ export const SHORTCUTS = {
   a: 'add',
   p: 'paste',
   s: 'summary',
-  e: 'edit',
   t: 'timer',
   q: 'exit',
 };
@@ -15,7 +14,6 @@ const baseItems = [
   { label: '(a) Add Task', value: 'add' },
   { label: '(p) Paste Tasks', value: 'paste' },
   { label: '(s) View Summary', value: 'summary' },
-  { label: '(e) Edit / Delete', value: 'edit' },
 ];
 
 export function getMenuItems(timerRunning) {

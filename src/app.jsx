@@ -4,7 +4,6 @@ import MainMenu from './components/MainMenu.jsx';
 import AddTask from './components/AddTask.jsx';
 import PasteTasks from './components/PasteTasks.jsx';
 import ViewSummary from './components/ViewSummary.jsx';
-import EditDelete from './components/EditDelete.jsx';
 import TimerStart from './components/TimerStart.jsx';
 import { getTimerStatus, stopTimer, formatElapsed } from './timer.js';
 import { addTask } from './store.js';
@@ -84,8 +83,7 @@ export default function App() {
         {screen === 'menu' && <MainMenu onSelect={navigate} timerRunning={!!timerInfo} />}
         {screen === 'add' && <AddTask onDone={goHome} onMessage={showMessage} />}
         {screen === 'paste' && <PasteTasks onDone={goHome} onMessage={showMessage} />}
-        {screen === 'summary' && <ViewSummary onDone={goHome} />}
-        {screen === 'edit' && <EditDelete onDone={goHome} onMessage={showMessage} />}
+        {screen === 'summary' && <ViewSummary onDone={goHome} onMessage={showMessage} />}
         {screen === 'timer-start' && <TimerStart onDone={goHome} onMessage={showMessage} />}
       </Box>
     </Box>
