@@ -1,77 +1,79 @@
 # Worklog
 
-[![Tests](https://github.com/aliaksandrZh/worklog/actions/workflows/test.yml/badge.svg)](https://github.com/aliaksandrZh/worklog/actions/workflows/test.yml)
-
-A terminal UI for tracking daily work tasks (bugs, tasks) with time spent. Replaces plain-text tracking with a proper interface supporting paste, summaries, editing, and a built-in timer.
+A terminal UI for tracking daily work tasks (bugs, tasks) with time spent. Built with Go and [Bubble Tea](https://github.com/charmbracelet/bubbletea) for native terminal rendering with zero flicker.
 
 ## Quick Start
 
-### Install
+**Prerequisites:** [Go](https://go.dev/) 1.21+
 
-**Prerequisites:** [Node.js](https://nodejs.org/) v18+
-
-**macOS / Linux:**
+### macOS / Linux
 
 ```bash
 git clone https://github.com/aliaksandrZh/worklog.git
 cd worklog
-chmod +x install.sh
-./install.sh
+go build -o tt .
+./tt
 ```
 
-**Windows:**
-
-```cmd
-git clone https://github.com/aliaksandrZh/worklog.git
-cd worklog
-install.bat
-```
-
-Both scripts install dependencies, link the `tt` command globally, and verify it's on your PATH.
-
-### Manual Install
+To make it available globally:
 
 ```bash
-npm install
-npm install -g .
+sudo cp tt /usr/local/bin/
+```
+
+### Windows
+
+```powershell
+git clone https://github.com/aliaksandrZh/worklog.git
+cd worklog
+go build -o tt.exe .
+.\tt.exe
+```
+
+To make it available globally, move `tt.exe` to a directory in your `PATH`, or add the current directory to `PATH`:
+
+```powershell
+# Option 1: copy to a directory already in PATH
+copy tt.exe C:\Users\%USERNAME%\go\bin\
+
+# Option 2: add current directory to PATH (current session)
+$env:PATH += ";$(Get-Location)"
 ```
 
 ## Usage
 
-Run `tt` with no arguments to launch the interactive TUI, or use subcommands for quick actions:
-
-```bash
-tt                              # interactive TUI menu
-tt add Bug 12345: Fix login 1h  # add a task instantly
-tt paste                        # read clipboard, parse, and save
-tt today                        # print today's tasks
-tt week                         # print current week's tasks
-```
-
-### Timer
-
-Track time on the current task — works from both CLI and TUI:
-
-```bash
-tt start Bug 123: Fix login     # start timer
-tt status                       # show what's being timed
-tt stop                         # stop timer, save task with elapsed time
-```
-
-In the TUI, the running timer is displayed in the header with elapsed time, and you can start/stop timers via the menu (`t` shortcut).
+Run `tt` to launch the interactive TUI.
 
 ### TUI Menu
 
-The interactive TUI provides keyboard shortcuts for quick navigation:
+Navigate with arrow keys + Enter, or press shortcut keys:
 
-- **(a) Add Task** — sequential form with back-navigation (Backspace on empty field)
-- **(p) Paste Tasks** — paste a line, parser extracts fields and prompts for anything missing
-- **(s) View Summary** — daily/weekly summaries with date navigation (←/→ arrows)
-- **(e) Edit/Delete** — select a task to edit or remove
-- **(t) Start/Stop Timer** — paste a task line to start timing
+- **(a) Add Task** — sequential form (Backspace on empty field goes back, Escape cancels)
+- **(p) Paste Tasks** — type/paste a task line, parser extracts fields and prompts for anything missing
+- **(s) View Summary** — daily/weekly summaries with date navigation
+- **(t) Start/Stop Timer** — type a task line to start timing; stop saves with elapsed time
 - **(q) Exit**
 
-Optional fields are marked with `?` in forms. The app checks for updates on startup.
+### View Summary
+
+- **d** / **w** — switch between daily and weekly view
+- **←** / **→** — navigate between periods
+- **s** — cycle sort column (date, type, number, name, time)
+- **S** — flip sort direction (asc/desc)
+- **e** — enter edit mode
+- **Esc** — go back
+
+### Edit Mode (in Summary)
+
+- **↑↓** — select row
+- **←→** — select column
+- **Enter** — edit the selected cell inline
+- **x** — delete the selected task (with y/n confirmation)
+- **Esc** — exit edit mode
+
+### Timer
+
+The running timer is displayed in the header with live elapsed time. Start from the menu (`t`), stop to save the task automatically.
 
 ## Data Storage
 
@@ -83,12 +85,12 @@ Tasks are stored in `tasks.csv` (auto-created on first run) in the current direc
 | type      | Bug, Task, etc.                |
 | number    | Task/ticket number             |
 | name      | Short description              |
-| timeSpent | Duration (e.g. 1h, 30m)       |
+| timeSpent | Duration (e.g. 1h, 30m)        |
 | comments  | Optional notes                 |
 
 ## Paste Format
 
-The parser is lenient — it extracts what it can and prompts for the rest. Supported formats:
+The parser is lenient — it extracts what it can and prompts for the rest:
 
 ```
 Bug 12345: Fix login page redirect 1h 30m
@@ -97,7 +99,7 @@ Pull Request 19082: Bug 31601: Fix date filter 1.5
 ```
 
 Recognized patterns:
-- **Type** — `Bug`, `Task` at start of line (color-coded: Bug in red, Task in yellow)
+- **Type** — `Bug`, `Task` at start of line (color-coded: Bug=red, Task=yellow)
 - **Number** — `123`, `#123`, `123:`
 - **Time** — `1h`, `30m`, `1h 30m`, or bare number like `1.5` (treated as hours)
 - **Name** — whatever remains after extracting other fields
@@ -106,17 +108,43 @@ Recognized patterns:
 ## Development
 
 ```bash
-npm start       # run the app (same as tt)
-npm test        # run all tests
+go build -o tt .    # build
+go test ./...       # run all tests
 ```
 
-Tests use Node.js built-in `node:test` and require no extra dependencies. CI runs on Node 18, 20, and 22 via GitHub Actions.
+## Project Structure
+
+```
+main.go                     # Entry point
+src/
+  cmd/root.go               # Wires screen factory, launches TUI
+  internal/
+    model/                  # Task, IndexedTask, ParsedTask structs
+    store/                  # CSV CRUD (Load, Save, Add, Update, Delete)
+    parser/                 # Lenient parser (patterns + pipeline)
+    timer/                  # .timer.json persistence
+    prefs/                  # .prefs.json persistence
+    timeutil/               # ParseTime, ParseDate, GroupByDate, etc.
+    format/                 # Pad, column width constants
+    update/                 # Git-based update check
+  tui/
+    app.go                  # Root model (screen router, flash, timer tick)
+    styles.go               # Lip Gloss styles
+    messages.go             # Screen enum, message types
+    table/                  # Reusable table renderer
+    addtask/                # Sequential 6-field form
+    paste/                  # 3-phase: input → fill → preview
+    summary/                # Daily/weekly view + inline edit mode
+    timerstart/             # Single input for timer
+```
 
 ## Tech Stack
 
-- **Node.js + [Ink 5](https://github.com/vadimdemedes/ink)** — React for the terminal
-- **CSV** via [PapaParse](https://www.papaparse.com/) — simple, portable storage
-- **tsx** — run JSX/ESM with zero config
+- **Go** — single binary, cross-platform
+- **[Bubble Tea](https://github.com/charmbracelet/bubbletea)** — TUI framework
+- **[Lip Gloss](https://github.com/charmbracelet/lipgloss)** — terminal styling
+- **[Bubbles](https://github.com/charmbracelet/bubbles)** — text input component
+- **CSV** — simple, portable storage
 
 ## License
 
