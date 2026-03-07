@@ -42,7 +42,7 @@ func (s *Store) Load() Prefs {
 // Save merges the given prefs with existing ones and writes to disk.
 func (s *Store) Save(p Prefs) error {
 	current := s.Load()
-	if p.SortBy != "" || p.SortBy == "" {
+	if p.SortBy != "" {
 		current.SortBy = p.SortBy
 	}
 	if p.SortDir != "" {
