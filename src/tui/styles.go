@@ -91,6 +91,9 @@ var (
 
 	// Remaining (hours left to reach workday)
 	RemainingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("1")) // red
+
+	// Timer row highlight (magenta foreground to match timer display)
+	TimerRowStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("5")) // magenta
 )
 
 // RemainingLabel returns a styled string showing overtime (+) or remaining (-) hours.

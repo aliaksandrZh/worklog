@@ -14,6 +14,7 @@ type TimerData struct {
 	Type      string `json:"type"`
 	Number    string `json:"number"`
 	Name      string `json:"name"`
+	Date      string `json:"date"`      // date when timer was started (M/D/YYYY)
 	StartedAt int64  `json:"startedAt"` // Unix milliseconds
 }
 
@@ -67,12 +68,17 @@ func FormatElapsedDecimal(ms int64) string {
 	return s + "h"
 }
 
+// Matches returns true if the timer data matches the given task fields.
+func (d *TimerData) Matches(typ, number, name, date string) bool {
+	return d.Type == typ && d.Number == number && d.Name == name && d.Date == date
+}
+
 func nowMs() int64 {
 	return time.Now().UnixMilli()
 }
 
 // Start begins a new timer. Errors if one is already running.
-func (t *Timer) Start(typ, number, name string) (*TimerData, error) {
+func (t *Timer) Start(typ, number, name, date string) (*TimerData, error) {
 	if _, err := os.Stat(t.path()); err == nil {
 		return nil, fmt.Errorf("Timer already running. Stop it first with: tt stop")
 	}
@@ -80,6 +86,7 @@ func (t *Timer) Start(typ, number, name string) (*TimerData, error) {
 		Type:      typ,
 		Number:    number,
 		Name:      name,
+		Date:      date,
 		StartedAt: nowMs(),
 	}
 	b, err := json.MarshalIndent(data, "", "  ")

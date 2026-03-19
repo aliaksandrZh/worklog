@@ -518,12 +518,22 @@ func (m *Model) updateTimerStart(msg tea.KeyMsg) (appTui.ScreenModel, tea.Cmd) {
 			m.phase = phaseView
 			return m, flash("Could not parse. Use: Bug 123: Fix login")
 		}
-		_, err := m.tmr.Start(typ, number, name)
+		date := fmt.Sprintf("%d/%d/%d", time.Now().Month(), time.Now().Day(), time.Now().Year())
+		_, err := m.tmr.Start(typ, number, name, date)
 		if err != nil {
 			m.inputBar.Deactivate()
 			m.phase = phaseView
 			return m, flash(err.Error())
 		}
+		// Add the task to CSV immediately so it appears in the table
+		task := model.Task{
+			Date:   date,
+			Type:   typ,
+			Number: number,
+			Name:   name,
+		}
+		_ = m.repo.AddTask(task)
+		m.reload()
 		m.inputBar.Deactivate()
 		m.phase = phaseView
 		label := fmt.Sprintf("%s %s: %s", typ, number, name)
@@ -757,6 +767,7 @@ func (m *Model) View() string {
 				SelectedRow:      -1,
 				SelectedCol:      m.selectedCol,
 				ConfirmDeleteRow: -1,
+				TimerRow:         m.timerRowIndex(sorted),
 			}
 			if isEdit {
 				localRow := m.selectedRow - rowOffset
@@ -797,6 +808,7 @@ func (m *Model) View() string {
 				SelectedRow:      -1,
 				SelectedCol:      m.selectedCol,
 				ConfirmDeleteRow: -1,
+				TimerRow:         m.timerRowIndex(sorted),
 			}
 			if isEdit {
 				localRow := m.selectedRow - rowOffset
@@ -835,6 +847,7 @@ func (m *Model) View() string {
 			SelectedRow:      -1,
 			SelectedCol:      m.selectedCol,
 			ConfirmDeleteRow: -1,
+			TimerRow:         m.timerRowIndex(m.displayed),
 		}
 		if isEdit {
 			cfg.SelectedRow = m.selectedRow
@@ -1102,6 +1115,20 @@ func indexOf(slice []string, val string) int {
 		}
 	}
 	return 0
+}
+
+// timerRowIndex returns the displayed row index matching the active timer, or -1.
+func (m *Model) timerRowIndex(tasks []model.IndexedTask) int {
+	status := m.tmr.GetStatus()
+	if status == nil {
+		return -1
+	}
+	for i, t := range tasks {
+		if status.Matches(t.Type, t.Number, t.Name, t.Date) {
+			return i
+		}
+	}
+	return -1
 }
 
 func stopTimer() tea.Cmd {

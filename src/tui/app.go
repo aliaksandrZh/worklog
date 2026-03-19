@@ -12,6 +12,7 @@ import (
 	"github.com/aliaksandrZh/worklog/src/internal/model"
 	"github.com/aliaksandrZh/worklog/src/internal/store"
 	"github.com/aliaksandrZh/worklog/src/internal/timer"
+	"github.com/aliaksandrZh/worklog/src/internal/timeutil"
 	"github.com/aliaksandrZh/worklog/src/internal/update"
 )
 
@@ -170,22 +171,51 @@ func (a App) stopTimer() (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 
-	task := model.Task{
-		Date:      fmt.Sprintf("%d/%d/%d", time.Now().Month(), time.Now().Day(), time.Now().Year()),
-		Type:      result.Type,
-		Number:    result.Number,
-		Name:      result.Name,
-		TimeSpent: result.TimeSpent,
+	// Find the existing task by matching timer fields and update its timeSpent
+	idx, existing := a.findTimerTask(result)
+	if idx >= 0 {
+		totalTime := result.TimeSpent
+		existingHours := timeutil.ParseTime(existing.TimeSpent)
+		if existingHours > 0 {
+			timerHours := timeutil.ParseTime(result.TimeSpent)
+			totalTime = timer.FormatElapsedDecimal(int64((existingHours + timerHours) * 3600000))
+		}
+		_ = a.repo.UpdateTask(idx, map[string]string{"timeSpent": totalTime})
+	} else {
+		// Fallback: task was deleted while timer was running, re-add it
+		task := model.Task{
+			Date:      result.Date,
+			Type:      result.Type,
+			Number:    result.Number,
+			Name:      result.Name,
+			TimeSpent: result.TimeSpent,
+		}
+		_ = a.repo.AddTask(task)
 	}
-	_ = a.repo.AddTask(task)
 	a.timerInfo = nil
-	a.flash = fmt.Sprintf("Timer stopped: %s %s: %s (%s)", task.Type, task.Number, task.Name, task.TimeSpent)
+	a.flash = fmt.Sprintf("Timer stopped: %s %s: %s (%s)", result.Type, result.Number, result.Name, result.TimeSpent)
 
-	// Reload summary to show the new task
+	// Reload summary to show the updated task
 	if r, ok := a.homeModel.(Reloadable); ok {
 		r.Reload()
 	}
 	return a, a.clearFlashAfter(flashDuration)
+}
+
+// findTimerTask locates the CSV index and task matching the timer data.
+// Returns -1 and empty task if not found (e.g. user deleted it while timer was running).
+func (a App) findTimerTask(status *timer.TimerStatus) (int, model.Task) {
+	tasks, err := a.repo.LoadTasks()
+	if err != nil {
+		return -1, model.Task{}
+	}
+	for i, t := range tasks {
+		if status.Type == t.Type && status.Number == t.Number &&
+			status.Name == t.Name && status.Date == t.Date {
+			return i, t
+		}
+	}
+	return -1, model.Task{}
 }
 
 func (a App) refreshTimer() tea.Cmd {

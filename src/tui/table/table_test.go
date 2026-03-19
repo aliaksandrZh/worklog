@@ -120,6 +120,51 @@ func TestRender_ConfirmDeleteRow(t *testing.T) {
 	}
 }
 
+func TestRender_TimerRowHighlighted(t *testing.T) {
+	tasks := []model.IndexedTask{
+		{Task: model.Task{Date: "3/19/2026", Type: "Bug", Number: "100", Name: "Normal task", TimeSpent: "1h"}, Index: 0},
+		{Task: model.Task{Date: "3/19/2026", Type: "Task", Number: "200", Name: "Timed task"}, Index: 1},
+	}
+	cfg := Config{
+		Width:            100,
+		SelectedRow:      -1,
+		ConfirmDeleteRow: -1,
+		TimerRow:         1,
+	}
+	out := Render(tasks, cfg)
+	lines := strings.Split(out, "\n")
+	// line 0 = header, line 1 = row 0 (normal), line 2 = row 1 (timer)
+	if len(lines) < 3 {
+		t.Fatalf("expected at least 3 lines, got %d", len(lines))
+	}
+	// The timer row should contain the task text
+	if !strings.Contains(lines[2], "Timed task") {
+		t.Errorf("timer row should contain task name, got: %s", lines[2])
+	}
+	// The normal row should NOT have the same ANSI styling as the timer row
+	// (just verify both rows render without panicking and contain their data)
+	if !strings.Contains(lines[1], "Normal task") {
+		t.Errorf("normal row should contain task name, got: %s", lines[1])
+	}
+}
+
+func TestRender_TimerRowNegativeOne(t *testing.T) {
+	tasks := []model.IndexedTask{
+		{Task: model.Task{Date: "3/19/2026", Type: "Bug", Number: "100", Name: "Test"}, Index: 0},
+	}
+	cfg := Config{
+		Width:            100,
+		SelectedRow:      -1,
+		ConfirmDeleteRow: -1,
+		TimerRow:         -1,
+	}
+	// Should render without issues when TimerRow is -1
+	out := Render(tasks, cfg)
+	if !strings.Contains(out, "Test") {
+		t.Errorf("should render task, got: %s", out)
+	}
+}
+
 func TestRender_Empty(t *testing.T) {
 	out := Render(nil, Config{Width: 80})
 	if !strings.Contains(out, "No tasks to display") {

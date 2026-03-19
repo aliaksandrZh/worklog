@@ -23,6 +23,7 @@ type Config struct {
 	EditingCell    bool   // true when a cell is being edited inline
 	EditView       string // rendered textinput View() for inline editing
 	ConfirmDeleteRow int  // row index pending delete confirmation, -1 = none
+	TimerRow         int  // row index with active timer, -1 = none
 }
 
 func colWidths(width int) (nameW, commentsW int) {
@@ -139,9 +140,12 @@ func Render(tasks []model.IndexedTask, cfg Config) string {
 			padded := format.Pad(val, cw)
 
 			// Apply styling
+			isTimerRow := i == cfg.TimerRow
 			style := lipgloss.NewStyle()
 			if isDeleteRow {
 				style = tui.DeleteRowStyle
+			} else if isTimerRow {
+				style = tui.TimerRowStyle
 			} else if col == "type" {
 				style = style.Foreground(tui.TypeColor(val))
 			}
