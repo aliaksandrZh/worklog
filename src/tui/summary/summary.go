@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/aliaksandrZh/worklog/src/internal/model"
+	"github.com/aliaksandrZh/worklog/src/internal/note"
 	"github.com/aliaksandrZh/worklog/src/internal/parser"
 	"github.com/aliaksandrZh/worklog/src/internal/prefs"
 	"github.com/aliaksandrZh/worklog/src/internal/store"
@@ -33,6 +34,7 @@ const (
 	phaseAdding
 	phaseAddFill
 	phaseTimerStart
+	phaseNote
 )
 
 // Model is the summary screen.
@@ -61,6 +63,7 @@ type Model struct {
 	repo  store.TaskRepository
 	tmr   *timer.Timer
 	prefs *prefs.Store
+	note  *note.Store
 
 	allTasks     []model.Task
 	indexedAll   []model.IndexedTask
@@ -82,7 +85,7 @@ func New(repo store.TaskRepository, tmr *timer.Timer) *Model {
 	ti.Prompt = ""
 	ti.CharLimit = 200
 
-	p := prefs.New(".")
+	p := prefs.New(store.DataDir())
 	pref := p.Load()
 
 	m := &Model{
@@ -95,6 +98,7 @@ func New(repo store.TaskRepository, tmr *timer.Timer) *Model {
 		repo:        repo,
 		tmr:         tmr,
 		prefs:       p,
+		note:        note.New(store.DataDir()),
 	}
 	if m.sortDir == "" {
 		m.sortDir = "asc"
@@ -181,6 +185,8 @@ func (m *Model) Update(msg tea.Msg) (appTui.ScreenModel, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch m.phase {
+		case phaseNote:
+			return m.updateNote(msg)
 		case phaseTimerStart:
 			return m.updateTimerStart(msg)
 		case phaseAdding:
@@ -208,7 +214,7 @@ func (m *Model) Update(msg tea.Msg) (appTui.ScreenModel, tea.Cmd) {
 	}
 
 	// Forward non-key messages (blink cursor, etc.) to textinput when editing/filtering/adding
-	if m.phase == phaseAdding || m.phase == phaseAddFill || m.phase == phaseTimerStart {
+	if m.phase == phaseAdding || m.phase == phaseAddFill || m.phase == phaseTimerStart || m.phase == phaseNote {
 		var cmd tea.Cmd
 		m.inputBar, cmd = m.inputBar.Update(msg)
 		return m, cmd
@@ -319,6 +325,14 @@ func (m *Model) updateView(msg tea.KeyMsg) (appTui.ScreenModel, tea.Cmd) {
 			m.monthOffset = 0
 			m.refreshDisplayed()
 		}
+	case "n":
+		m.phase = phaseNote
+		m.inputBar.SetWidth(m.width)
+		m.inputBar.ActivateWithValue(inputbar.Config{
+			Placeholder: "note text (empty to clear)",
+			Hints:       "Enter=save  Escape=cancel",
+		}, m.note.Load())
+		return m, textinput.Blink
 	case "f":
 		m.phase = phaseFilter
 		m.inputBar.SetWidth(m.width)
@@ -498,6 +512,28 @@ func (m *Model) updateFilter(msg tea.KeyMsg) (appTui.ScreenModel, tea.Cmd) {
 	// Live filter as user types
 	m.filterText = m.inputBar.Value()
 	m.refreshDisplayed()
+	return m, cmd
+}
+
+func (m *Model) updateNote(msg tea.KeyMsg) (appTui.ScreenModel, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEscape:
+		m.inputBar.Deactivate()
+		m.phase = phaseView
+		return m, nil
+	case tea.KeyEnter:
+		text := strings.TrimSpace(m.inputBar.Value())
+		m.note.Save(text)
+		m.inputBar.Deactivate()
+		m.phase = phaseView
+		if text == "" {
+			return m, flash("Note cleared.")
+		}
+		return m, flash("Note saved.")
+	}
+
+	var cmd tea.Cmd
+	m.inputBar, cmd = m.inputBar.Update(msg)
 	return m, cmd
 }
 
@@ -717,6 +753,8 @@ func (m *Model) View() string {
 		stateLabel = " (EDIT)"
 	} else if m.phase == phaseAdding || m.phase == phaseAddFill {
 		stateLabel = " [ADDING]"
+	} else if m.phase == phaseNote {
+		stateLabel = " [NOTE]"
 	} else if m.phase == phaseTimerStart {
 		stateLabel = " [TIMER]"
 	} else if m.phase == phaseFilter {
@@ -729,7 +767,7 @@ func (m *Model) View() string {
 	if m.sortBy != "" {
 		sortHint = m.sortBy + " " + m.sortDir
 	}
-	viewHint := fmt.Sprintf("[a]dd [e]dit %s | [d]aily [w]eekly [m]onthly | ← → nav | [f]ilter [s]ort(%s) [q]uit", m.timerHint(), sortHint)
+	viewHint := fmt.Sprintf("[a]dd [e]dit %s [n]ote | [d]aily [w]eekly [m]onthly | ← → nav | [f]ilter [s]ort(%s) [q]uit", m.timerHint(), sortHint)
 	editHint := fmt.Sprintf("↑↓ row  ←→ col | Enter=edit [x]=delete | [s]ort(%s) [S]=flip | [e]/Esc=back", sortHint)
 	var hintLine string
 	if m.phase == phaseFilter {
@@ -745,9 +783,16 @@ func (m *Model) View() string {
 		w = 80
 	}
 
+	noteText := m.note.Load()
+	var noteLine string
+	if noteText != "" {
+		noteLine = appTui.TimerStyle.Render("⚡ "+noteText) + "\n"
+	}
+
 	if m.mode == "monthly" {
 		result := timeutil.FilterMonthByOffset(m.indexedAll, m.monthOffset)
 		header.WriteString(appTui.TitleStyle.Render(fmt.Sprintf("Monthly Summary%s", stateLabel)) + "\n")
+		header.WriteString(noteLine)
 		header.WriteString(appTui.PromptStyle.Render(
 			fmt.Sprintf("%s — %.1fh total (%d tasks)", result.Label, result.Total, len(result.Tasks))) + "\n")
 
@@ -789,6 +834,7 @@ func (m *Model) View() string {
 	} else if m.mode == "weekly" {
 		result := timeutil.FilterWeekByOffset(m.indexedAll, m.weekOffset)
 		header.WriteString(appTui.TitleStyle.Render(fmt.Sprintf("Weekly Summary%s", stateLabel)) + "\n")
+		header.WriteString(noteLine)
 		header.WriteString(appTui.PromptStyle.Render(
 			fmt.Sprintf("%s — %.1fh total (%d tasks)", result.Label, result.Total, len(result.Tasks))) + "\n")
 
@@ -833,6 +879,7 @@ func (m *Model) View() string {
 			dateLabel = " — " + m.dailyGroups[m.dailyIdx].Key
 		}
 		header.WriteString(appTui.TitleStyle.Render(fmt.Sprintf("Daily Summary%s%s", stateLabel, dateLabel)) + "\n")
+		header.WriteString(noteLine)
 		if m.dailyIdx < len(m.dailyGroups) {
 			g := m.dailyGroups[m.dailyIdx]
 			header.WriteString(appTui.PromptStyle.Render(
