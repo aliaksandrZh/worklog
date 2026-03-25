@@ -4,5 +4,7 @@ tasks.csv
 .DS_Store
 .timer.json
 .prefs.json
+.note.json
+.workday.json
 tt
 worklog_feedback/

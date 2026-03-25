@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/aliaksandrZh/worklog/src/internal/model"
 	"github.com/aliaksandrZh/worklog/src/internal/note"
+	"github.com/aliaksandrZh/worklog/src/internal/workday"
 	"github.com/aliaksandrZh/worklog/src/internal/parser"
 	"github.com/aliaksandrZh/worklog/src/internal/prefs"
 	"github.com/aliaksandrZh/worklog/src/internal/store"
@@ -63,7 +64,8 @@ type Model struct {
 	repo  store.TaskRepository
 	tmr   *timer.Timer
 	prefs *prefs.Store
-	note  *note.Store
+	note    *note.Store
+	workday *workday.Timer
 
 	allTasks     []model.Task
 	indexedAll   []model.IndexedTask
@@ -99,6 +101,7 @@ func New(repo store.TaskRepository, tmr *timer.Timer) *Model {
 		tmr:         tmr,
 		prefs:       p,
 		note:        note.New(store.DataDir()),
+		workday:     workday.New(store.DataDir()),
 	}
 	if m.sortDir == "" {
 		m.sortDir = "asc"
@@ -269,6 +272,17 @@ func (m *Model) updateView(msg tea.KeyMsg) (appTui.ScreenModel, tea.Cmd) {
 			Hints:       "Enter=start timer  Escape=cancel",
 		})
 		return m, textinput.Blink
+	case "g":
+		if m.workday.GetStatus() != nil {
+			if err := m.workday.Stop(); err != nil {
+				return m, flash(err.Error())
+			}
+			return m, flash("Workday stopped.")
+		}
+		if err := m.workday.Start(); err != nil {
+			return m, flash(err.Error())
+		}
+		return m, flash("Workday started!")
 	case "e":
 		if len(m.displayed) > 0 {
 			m.phase = phaseSelect
@@ -682,6 +696,17 @@ func (m *Model) startAddFillOrSave() (appTui.ScreenModel, tea.Cmd) {
 	}
 
 	// All fields filled — save
+	// Auto-fill time from workday timer when task has no timeSpent
+	if m.workday.GetStatus() != nil {
+		for i := range m.addParsed {
+			if m.addParsed[i].TimeSpent == "" {
+				hours := m.workday.ElapsedSinceLastTask()
+				m.addParsed[i].TimeSpent = fmt.Sprintf("%.1fh", hours)
+			}
+		}
+		m.workday.RecordTaskAdd()
+	}
+
 	tasks := make([]model.Task, len(m.addParsed))
 	for i, p := range m.addParsed {
 		tasks[i] = p.Task
@@ -731,6 +756,13 @@ func countLines(s string) int {
 	return strings.Count(s, "\n")
 }
 
+func (m *Model) workdayHint() string {
+	if m.workday.GetStatus() != nil {
+		return "[g]=stop day"
+	}
+	return "[g]o day"
+}
+
 func (m *Model) timerHint() string {
 	if m.tmr.GetStatus() != nil {
 		return "[t]=stop"
@@ -767,7 +799,7 @@ func (m *Model) View() string {
 	if m.sortBy != "" {
 		sortHint = m.sortBy + " " + m.sortDir
 	}
-	viewHint := fmt.Sprintf("[a]dd [e]dit %s [n]ote | [d]aily [w]eekly [m]onthly | ← → nav | [f]ilter [s]ort(%s) [q]uit", m.timerHint(), sortHint)
+	viewHint := fmt.Sprintf("[a]dd [e]dit %s %s [n]ote | [d]aily [w]eekly [m]onthly | ← → nav | [f]ilter [s]ort(%s) [q]uit", m.timerHint(), m.workdayHint(), sortHint)
 	editHint := fmt.Sprintf("↑↓ row  ←→ col | Enter=edit [x]=delete | [s]ort(%s) [S]=flip | [e]/Esc=back", sortHint)
 	var hintLine string
 	if m.phase == phaseFilter {
@@ -789,10 +821,21 @@ func (m *Model) View() string {
 		noteLine = appTui.TimerStyle.Render("⚡ "+noteText) + "\n"
 	}
 
+	var workdayTag string
+	if ws := m.workday.GetStatus(); ws != nil {
+		tag := fmt.Sprintf("⏱ %.1fh", ws.Elapsed)
+		if ws.Elapsed >= 7.5 {
+			workdayTag = " " + appTui.ErrorStyle.Render(tag+" ⚠")
+		} else {
+			workdayTag = " " + appTui.TimerStyle.Render(tag)
+		}
+	}
+
 	if m.mode == "monthly" {
 		result := timeutil.FilterMonthByOffset(m.indexedAll, m.monthOffset)
 		header.WriteString(appTui.TitleStyle.Render(fmt.Sprintf("Monthly Summary%s", stateLabel)) + "\n")
 		header.WriteString(noteLine)
+
 		header.WriteString(appTui.PromptStyle.Render(
 			fmt.Sprintf("%s — %.1fh total (%d tasks)", result.Label, result.Total, len(result.Tasks))) + "\n")
 
@@ -802,7 +845,11 @@ func (m *Model) View() string {
 			body.WriteString("\n")
 			body.WriteString(appTui.PromptStyle.Render(
 				fmt.Sprintf("%s — %.1fh total (%d tasks)", g.Key, g.Total, len(g.Tasks))))
-			body.WriteString(" " + appTui.RemainingLabel(g.Total, 8) + " " + appTui.ProgressBar(g.Total, 8, 10) + "\n")
+			body.WriteString(" " + appTui.RemainingLabel(g.Total, 8) + " " + appTui.ProgressBar(g.Total, 8, 10))
+			if g.Key == timeutil.TodayStr() {
+				body.WriteString(workdayTag)
+			}
+			body.WriteString("\n")
 
 			sorted := timeutil.SortTasks(g.Tasks, m.sortBy, m.sortDir)
 			cfg := table.Config{
@@ -835,6 +882,7 @@ func (m *Model) View() string {
 		result := timeutil.FilterWeekByOffset(m.indexedAll, m.weekOffset)
 		header.WriteString(appTui.TitleStyle.Render(fmt.Sprintf("Weekly Summary%s", stateLabel)) + "\n")
 		header.WriteString(noteLine)
+
 		header.WriteString(appTui.PromptStyle.Render(
 			fmt.Sprintf("%s — %.1fh total (%d tasks)", result.Label, result.Total, len(result.Tasks))) + "\n")
 
@@ -844,7 +892,11 @@ func (m *Model) View() string {
 			body.WriteString("\n")
 			body.WriteString(appTui.PromptStyle.Render(
 				fmt.Sprintf("%s — %.1fh total (%d tasks)", g.Key, g.Total, len(g.Tasks))))
-			body.WriteString(" " + appTui.RemainingLabel(g.Total, 8) + " " + appTui.ProgressBar(g.Total, 8, 10) + "\n")
+			body.WriteString(" " + appTui.RemainingLabel(g.Total, 8) + " " + appTui.ProgressBar(g.Total, 8, 10))
+			if g.Key == timeutil.TodayStr() {
+				body.WriteString(workdayTag)
+			}
+			body.WriteString("\n")
 
 			sorted := timeutil.SortTasks(g.Tasks, m.sortBy, m.sortDir)
 			cfg := table.Config{
@@ -880,11 +932,16 @@ func (m *Model) View() string {
 		}
 		header.WriteString(appTui.TitleStyle.Render(fmt.Sprintf("Daily Summary%s%s", stateLabel, dateLabel)) + "\n")
 		header.WriteString(noteLine)
+
 		if m.dailyIdx < len(m.dailyGroups) {
 			g := m.dailyGroups[m.dailyIdx]
 			header.WriteString(appTui.PromptStyle.Render(
 				fmt.Sprintf("%s — %.1fh total (%d tasks)", g.Key, g.Total, len(g.Tasks))))
-			header.WriteString(" " + appTui.RemainingLabel(g.Total, 8) + " " + appTui.ProgressBar(g.Total, 8, 10) + "\n")
+			header.WriteString(" " + appTui.RemainingLabel(g.Total, 8) + " " + appTui.ProgressBar(g.Total, 8, 10))
+			if g.Key == timeutil.TodayStr() {
+				header.WriteString(workdayTag)
+			}
+			header.WriteString("\n")
 		}
 
 		cfg := table.Config{
