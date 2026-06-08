@@ -25,8 +25,8 @@ type UpdateAvailableMsg struct {
 
 // Notifications holds data for the notification zone rendered by the active screen.
 type Notifications struct {
-	TimerLine string // pre-formatted timer status line (empty if no timer)
-	FlashLine string // pre-formatted flash message (empty if none)
+	TimerLine  string // pre-formatted timer status line (empty if no timer)
+	FlashLine  string // pre-formatted flash message (empty if none)
 	UpdateLine string // pre-formatted update notice (empty if none)
 }
 

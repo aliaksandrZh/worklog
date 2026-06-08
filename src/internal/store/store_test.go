@@ -33,7 +33,7 @@ func TestAddAndLoad(t *testing.T) {
 	s := tempStore(t)
 	err := s.AddTask(model.Task{
 		Date: "3/5/2026", Type: "Bug", Number: "123",
-		Name: "Fix login", TimeSpent: "1h", Comments: "",
+		Name: "Fix login", TimeSpent: "1h", Project: "Job", Comments: "",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -47,6 +47,9 @@ func TestAddAndLoad(t *testing.T) {
 	}
 	if tasks[0].Name != "Fix login" {
 		t.Errorf("got name %q", tasks[0].Name)
+	}
+	if tasks[0].Project != "Job" {
+		t.Errorf("got project %q, want Job", tasks[0].Project)
 	}
 }
 
@@ -112,7 +115,7 @@ func TestDeleteOutOfRange(t *testing.T) {
 func TestTrimWhitespace(t *testing.T) {
 	s := tempStore(t)
 	// Write CSV with whitespace manually
-	err := os.WriteFile(s.Path, []byte("date,type,number,name,timeSpent,comments\n  3/5/2026 , Bug , 123 , Fix login , 1h , test \n"), 0o644)
+	err := os.WriteFile(s.Path, []byte("date,type,number,name,timeSpent,project,comments\n  3/5/2026 , Bug , 123 , Fix login , 1h , Job , test \n"), 0o644)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,6 +128,28 @@ func TestTrimWhitespace(t *testing.T) {
 	}
 	if tasks[0].Type != "Bug" {
 		t.Errorf("type not trimmed: %q", tasks[0].Type)
+	}
+	if tasks[0].Project != "Job" {
+		t.Errorf("project not trimmed: %q", tasks[0].Project)
+	}
+}
+
+func TestLoadOldCSVWithoutProject(t *testing.T) {
+	s := tempStore(t)
+	// Write old 6-column CSV
+	err := os.WriteFile(s.Path, []byte("date,type,number,name,timeSpent,comments\n3/5/2026,Bug,123,Fix login,1h,test\n"), 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tasks, err := s.LoadTasks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(tasks))
+	}
+	if tasks[0].Project != "" {
+		t.Errorf("expected empty project for old CSV, got %q", tasks[0].Project)
 	}
 }
 

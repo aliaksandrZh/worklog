@@ -11,25 +11,25 @@ import (
 )
 
 // Columns defines the column order.
-var Columns = []string{"date", "type", "number", "name", "timeSpent", "comments"}
+var Columns = []string{"date", "type", "number", "name", "timeSpent", "project", "comments"}
 
 // Config controls table rendering.
 type Config struct {
-	Width       int
-	SortBy      string
-	SortDir     string
-	SelectedRow int // -1 = no selection
-	SelectedCol int
-	EditingCell    bool   // true when a cell is being edited inline
-	EditView       string // rendered textinput View() for inline editing
-	ConfirmDeleteRow int  // row index pending delete confirmation, -1 = none
-	TimerRow         int  // row index with active timer, -1 = none
+	Width            int
+	SortBy           string
+	SortDir          string
+	SelectedRow      int // -1 = no selection
+	SelectedCol      int
+	EditingCell      bool   // true when a cell is being edited inline
+	EditView         string // rendered textinput View() for inline editing
+	ConfirmDeleteRow int    // row index pending delete confirmation, -1 = none
+	TimerRow         int    // row index with active timer, -1 = none
 }
 
 func colWidths(width int) (nameW, commentsW int) {
-	numGaps := 5
+	numGaps := 6
 	gap := len(format.Gap)
-	fixedW := format.DateWidth + format.TypeWidth + format.NumberWidth + format.TimeSpentWidth + numGaps*gap
+	fixedW := format.DateWidth + format.TypeWidth + format.NumberWidth + format.TimeSpentWidth + format.ProjectWidth + numGaps*gap
 	remaining := width - fixedW
 	if remaining < format.MinName+format.MinComments {
 		remaining = format.MinName + format.MinComments
@@ -60,6 +60,8 @@ func getColWidth(col string, nameW, commentsW int) int {
 		return nameW
 	case "timeSpent":
 		return format.TimeSpentWidth
+	case "project":
+		return format.ProjectWidth
 	case "comments":
 		return commentsW
 	}
@@ -78,6 +80,8 @@ func getField(t model.Task, col string) string {
 		return t.Name
 	case "timeSpent":
 		return t.TimeSpent
+	case "project":
+		return t.Project
 	case "comments":
 		return t.Comments
 	}
@@ -164,7 +168,7 @@ func Render(tasks []model.IndexedTask, cfg Config) string {
 
 // sortableColumns lists columns that support sorting.
 var sortableColumns = map[string]bool{
-	"date": true, "type": true, "number": true, "name": true, "timeSpent": true,
+	"date": true, "type": true, "number": true, "name": true, "timeSpent": true, "project": true,
 }
 
 // HeaderLabel returns the display label for a column.
@@ -180,6 +184,8 @@ func HeaderLabel(col string) string {
 		return "NAME"
 	case "timeSpent":
 		return "TIME"
+	case "project":
+		return "PROJECT"
 	case "comments":
 		return "COMMENTS"
 	}

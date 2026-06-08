@@ -159,6 +159,8 @@ func getField(t model.Task, field string) string {
 		return t.Name
 	case "timeSpent":
 		return t.TimeSpent
+	case "project":
+		return t.Project
 	case "comments":
 		return t.Comments
 	default:

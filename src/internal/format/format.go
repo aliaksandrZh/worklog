@@ -8,6 +8,7 @@ const (
 	TypeWidth      = 6
 	NumberWidth    = 8
 	TimeSpentWidth = 8
+	ProjectWidth   = 10
 	MinName        = 10
 	MinComments    = 5
 )

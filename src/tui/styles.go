@@ -53,12 +53,12 @@ var (
 	TableHeaderStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(lipgloss.Color("6")).
-			Background(lipgloss.Color("236"))
+				Background(lipgloss.Color("236"))
 
 	// Active editing cell (deep blue background)
 	EditingCellStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("17")).
-			Foreground(lipgloss.Color("15")) // white on deep blue
+				Background(lipgloss.Color("17")).
+				Foreground(lipgloss.Color("15")) // white on deep blue
 
 	// Confirm delete
 	DeleteConfirmStyle = lipgloss.NewStyle().

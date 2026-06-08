@@ -8,8 +8,9 @@ import (
 
 // Prefs holds user preferences persisted to .prefs.json.
 type Prefs struct {
-	SortBy  string `json:"sortBy,omitempty"`
-	SortDir string `json:"sortDir,omitempty"`
+	SortBy        string `json:"sortBy,omitempty"`
+	SortDir       string `json:"sortDir,omitempty"`
+	ProjectFilter string `json:"projectFilter,omitempty"`
 }
 
 // Store manages preferences persistence.
@@ -48,6 +49,7 @@ func (s *Store) Save(p Prefs) error {
 	if p.SortDir != "" {
 		current.SortDir = p.SortDir
 	}
+	current.ProjectFilter = p.ProjectFilter
 	b, err := json.MarshalIndent(current, "", "  ")
 	if err != nil {
 		return err

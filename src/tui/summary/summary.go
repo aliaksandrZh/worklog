@@ -6,23 +6,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/aliaksandrZh/worklog/src/internal/format"
 	"github.com/aliaksandrZh/worklog/src/internal/model"
 	"github.com/aliaksandrZh/worklog/src/internal/note"
-	"github.com/aliaksandrZh/worklog/src/internal/workday"
 	"github.com/aliaksandrZh/worklog/src/internal/parser"
 	"github.com/aliaksandrZh/worklog/src/internal/prefs"
 	"github.com/aliaksandrZh/worklog/src/internal/store"
-	"github.com/aliaksandrZh/worklog/src/internal/timeutil"
 	"github.com/aliaksandrZh/worklog/src/internal/timer"
+	"github.com/aliaksandrZh/worklog/src/internal/timeutil"
+	"github.com/aliaksandrZh/worklog/src/internal/workday"
 	appTui "github.com/aliaksandrZh/worklog/src/tui"
 	"github.com/aliaksandrZh/worklog/src/tui/inputbar"
 	"github.com/aliaksandrZh/worklog/src/tui/table"
+	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
-var sortColumns = []string{"", "date", "type", "number", "name", "timeSpent"}
+var sortColumns = []string{"", "date", "type", "number", "name", "timeSpent", "project"}
 
 type phase int
 
@@ -36,6 +37,7 @@ const (
 	phaseAddFill
 	phaseTimerStart
 	phaseNote
+	phaseProjectFilter
 )
 
 // Model is the summary screen.
@@ -56,21 +58,27 @@ type Model struct {
 
 	filterText string // active filter (applied when non-empty)
 
-	inputBar     inputbar.Model
-	addParsed    []model.ParsedTask
-	addTaskIdx   int
-	addFieldIdx  int
+	inputBar    inputbar.Model
+	addParsed   []model.ParsedTask
+	addTaskIdx  int
+	addFieldIdx int
 
-	repo  store.TaskRepository
-	tmr   *timer.Timer
-	prefs *prefs.Store
+	repo    store.TaskRepository
+	tmr     *timer.Timer
+	prefs   *prefs.Store
 	note    *note.Store
 	workday *workday.Timer
 
-	allTasks     []model.Task
-	indexedAll   []model.IndexedTask
-	dailyGroups  []timeutil.DateGroup
-	displayed    []model.IndexedTask
+	projectFilter  string
+	projectNames   []string
+	projectIdx     int
+	projectNewMode bool // true when typing a new project name (not cycling picker)
+	editingProject bool // true when inline-editing the project cell
+
+	allTasks      []model.Task
+	indexedAll    []model.IndexedTask
+	dailyGroups   []timeutil.DateGroup
+	displayed     []model.IndexedTask
 	weeklyGroups  []timeutil.DateGroup // day groups within current week
 	monthlyGroups []timeutil.DateGroup // day groups within current month
 
@@ -91,17 +99,18 @@ func New(repo store.TaskRepository, tmr *timer.Timer) *Model {
 	pref := p.Load()
 
 	m := &Model{
-		mode:        "daily",
-		phase:       phaseView,
-		sortBy:      pref.SortBy,
-		sortDir:     pref.SortDir,
-		editInput: ti,
-		inputBar:  inputbar.New(),
-		repo:        repo,
-		tmr:         tmr,
-		prefs:       p,
-		note:        note.New(store.DataDir()),
-		workday:     workday.New(store.DataDir()),
+		mode:          "daily",
+		phase:         phaseView,
+		sortBy:        pref.SortBy,
+		sortDir:       pref.SortDir,
+		editInput:     ti,
+		inputBar:      inputbar.New(),
+		repo:          repo,
+		tmr:           tmr,
+		prefs:         p,
+		note:          note.New(store.DataDir()),
+		workday:       workday.New(store.DataDir()),
+		projectFilter: pref.ProjectFilter,
 	}
 	if m.sortDir == "" {
 		m.sortDir = "asc"
@@ -122,6 +131,66 @@ func (m *Model) reload() {
 	m.refreshDisplayed()
 }
 
+func splitProjects(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func taskHasProject(t model.Task, project string) bool {
+	if project == "" {
+		return true
+	}
+	for _, p := range splitProjects(t.Project) {
+		if strings.EqualFold(p, project) {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Model) tasksByProject() []model.IndexedTask {
+	if m.projectFilter == "" {
+		return m.indexedAll
+	}
+	var out []model.IndexedTask
+	for _, t := range m.indexedAll {
+		if taskHasProject(t.Task, m.projectFilter) {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func (m *Model) buildProjectNames() []string {
+	known := map[string]bool{}
+	for _, t := range m.allTasks {
+		for _, p := range splitProjects(t.Project) {
+			known[p] = true
+		}
+	}
+	var list []string
+	for p := range known {
+		list = append(list, p)
+	}
+	sort.Strings(list)
+	return append([]string{"All"}, list...)
+}
+
+func projectIndex(names []string, current string) int {
+	for i, p := range names {
+		if strings.EqualFold(p, current) || (current == "" && p == "All") {
+			return i
+		}
+	}
+	return 0
+}
+
 // ensureTodayGroup makes sure today's date is in dailyGroups and sets dailyIdx to it.
 func (m *Model) ensureTodayGroup() {
 	idx := timeutil.TodayIndex(m.dailyGroups)
@@ -136,8 +205,10 @@ func (m *Model) ensureTodayGroup() {
 }
 
 func (m *Model) refreshDisplayed() {
+	base := m.tasksByProject()
+
 	if m.mode == "monthly" {
-		result := timeutil.FilterMonthByOffset(m.indexedAll, m.monthOffset)
+		result := timeutil.FilterMonthByOffset(base, m.monthOffset)
 		m.monthlyGroups = timeutil.GroupByDate(result.Tasks)
 		m.displayed = nil
 		for i, g := range m.monthlyGroups {
@@ -147,7 +218,7 @@ func (m *Model) refreshDisplayed() {
 			m.displayed = append(m.displayed, timeutil.SortTasks(filtered, m.sortBy, m.sortDir)...)
 		}
 	} else if m.mode == "weekly" {
-		result := timeutil.FilterWeekByOffset(m.indexedAll, m.weekOffset)
+		result := timeutil.FilterWeekByOffset(base, m.weekOffset)
 		m.weeklyGroups = timeutil.GroupByDate(result.Tasks)
 		m.displayed = nil
 		for i, g := range m.weeklyGroups {
@@ -159,9 +230,10 @@ func (m *Model) refreshDisplayed() {
 	} else {
 		m.weeklyGroups = nil
 		m.monthlyGroups = nil
+		groups := timeutil.GroupByDate(base)
 		var raw []model.IndexedTask
-		if m.dailyIdx < len(m.dailyGroups) {
-			raw = m.dailyGroups[m.dailyIdx].Tasks
+		if m.dailyIdx < len(groups) {
+			raw = groups[m.dailyIdx].Tasks
 		}
 		m.displayed = timeutil.SortTasks(filterTasks(raw, m.filterText), m.sortBy, m.sortDir)
 	}
@@ -196,6 +268,8 @@ func (m *Model) Update(msg tea.Msg) (appTui.ScreenModel, tea.Cmd) {
 			return m.updateAdding(msg)
 		case phaseAddFill:
 			return m.updateAddFill(msg)
+		case phaseProjectFilter:
+			return m.updateProjectFilter(msg)
 		case phaseFilter:
 			return m.updateFilter(msg)
 		case phaseEditing:
@@ -217,7 +291,7 @@ func (m *Model) Update(msg tea.Msg) (appTui.ScreenModel, tea.Cmd) {
 	}
 
 	// Forward non-key messages (blink cursor, etc.) to textinput when editing/filtering/adding
-	if m.phase == phaseAdding || m.phase == phaseAddFill || m.phase == phaseTimerStart || m.phase == phaseNote {
+	if m.phase == phaseAdding || m.phase == phaseAddFill || m.phase == phaseTimerStart || m.phase == phaseNote || m.phase == phaseProjectFilter {
 		var cmd tea.Cmd
 		m.inputBar, cmd = m.inputBar.Update(msg)
 		return m, cmd
@@ -347,6 +421,9 @@ func (m *Model) updateView(msg tea.KeyMsg) (appTui.ScreenModel, tea.Cmd) {
 			Hints:       "Enter=save  Escape=cancel",
 		}, m.note.Load())
 		return m, textinput.Blink
+	case "p":
+		m.enterProjectFilter()
+		return m, nil
 	case "f":
 		m.phase = phaseFilter
 		m.inputBar.SetWidth(m.width)
@@ -424,6 +501,11 @@ func (m *Model) updateSelect(msg tea.KeyMsg) (appTui.ScreenModel, tea.Cmd) {
 			val := getField(m.displayed[m.selectedRow].Task, col)
 			colW := table.ColWidth(col, m.width)
 
+			if col == "project" {
+				m.enterProjectEdit(val)
+				return m, nil
+			}
+
 			// If value fits in column, edit inline; otherwise use bottom input bar
 			if len([]rune(val)) < colW-1 {
 				m.editInline = true
@@ -465,7 +547,140 @@ func (m *Model) updateSelect(msg tea.KeyMsg) (appTui.ScreenModel, tea.Cmd) {
 	return m, nil
 }
 
+func (m *Model) enterProjectFilter() {
+	m.projectNames = m.buildProjectNames()
+	m.projectIdx = projectIndex(m.projectNames, m.projectFilter)
+	m.projectNewMode = false
+	m.phase = phaseProjectFilter
+}
+
+func (m *Model) updateProjectFilter(msg tea.KeyMsg) (appTui.ScreenModel, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "escape":
+		if m.projectNewMode {
+			m.projectNewMode = false
+			m.inputBar.Deactivate()
+			return m, nil
+		}
+		m.phase = phaseView
+		return m, nil
+	case "enter":
+		if m.projectNewMode {
+			m.projectNewMode = false
+			selected := strings.TrimSpace(m.inputBar.Value())
+			m.inputBar.Deactivate()
+			if selected != "" && !strings.EqualFold(selected, "All") {
+				m.projectFilter = selected
+			}
+			_ = m.prefs.Save(prefs.Prefs{ProjectFilter: m.projectFilter})
+			m.phase = phaseView
+			m.refreshDisplayed()
+			return m, flash(fmt.Sprintf("Project: %s", selected))
+		}
+		// Selection mode: apply currently selected project
+		selected := m.projectNames[m.projectIdx]
+		if strings.EqualFold(selected, "All") {
+			m.projectFilter = ""
+		} else {
+			m.projectFilter = selected
+		}
+		_ = m.prefs.Save(prefs.Prefs{ProjectFilter: m.projectFilter})
+		m.phase = phaseView
+		m.refreshDisplayed()
+		label := selected
+		if m.projectFilter == "" {
+			label = "All"
+		}
+		return m, flash(fmt.Sprintf("Project: %s", label))
+	case "up", "k":
+		if !m.projectNewMode {
+			m.projectIdx--
+			if m.projectIdx < 0 {
+				m.projectIdx = len(m.projectNames) - 1
+			}
+			return m, nil
+		}
+	case "down", "j":
+		if !m.projectNewMode {
+			m.projectIdx++
+			if m.projectIdx >= len(m.projectNames) {
+				m.projectIdx = 0
+			}
+			return m, nil
+		}
+	case "n":
+		if !m.projectNewMode {
+			m.projectNewMode = true
+			m.inputBar.SetWidth(m.width)
+			m.inputBar.Activate(inputbar.Config{
+				Placeholder: "new project name",
+				Hints:       "Enter=create  Escape=back to picker",
+			})
+			m.inputBar.SetValue("")
+			return m, textinput.Blink
+		}
+	}
+
+	// Forward typing only in new-project mode; ignore typing in selection mode
+	if m.projectNewMode {
+		var cmd tea.Cmd
+		m.inputBar, cmd = m.inputBar.Update(msg)
+		return m, cmd
+	}
+	return m, nil
+}
+
+func (m *Model) enterProjectEdit(currentVal string) {
+	m.projectNames = m.buildProjectNames()
+	m.projectIdx = projectIndex(m.projectNames, currentVal)
+	m.editingProject = true
+	m.editInline = true
+	m.phase = phaseEditing
+}
+
+func (m *Model) renderInlineProjectPicker(width int) string {
+	selected := "All"
+	if m.projectIdx < len(m.projectNames) {
+		selected = m.projectNames[m.projectIdx]
+	}
+	return format.Pad("▸ "+selected, width)
+}
+
 func (m *Model) updateEditing(msg tea.KeyMsg) (appTui.ScreenModel, tea.Cmd) {
+	if m.editingProject {
+		switch msg.String() {
+		case "esc", "escape":
+			m.editingProject = false
+			m.phase = phaseSelect
+			return m, nil
+		case "enter":
+			task := m.displayed[m.selectedRow]
+			selected := m.projectNames[m.projectIdx]
+			val := ""
+			if selected != "All" {
+				val = selected
+			}
+			_ = m.repo.UpdateTask(task.Index, map[string]string{"project": val})
+			m.reload()
+			m.editingProject = false
+			m.phase = phaseSelect
+			return m, flash("Updated project.")
+		case "up", "k":
+			m.projectIdx--
+			if m.projectIdx < 0 {
+				m.projectIdx = len(m.projectNames) - 1
+			}
+			return m, nil
+		case "down", "j":
+			m.projectIdx++
+			if m.projectIdx >= len(m.projectNames) {
+				m.projectIdx = 0
+			}
+			return m, nil
+		}
+		return m, nil
+	}
+
 	switch msg.Type {
 	case tea.KeyEscape:
 		if !m.editInline {
@@ -562,14 +777,14 @@ func (m *Model) updateTimerStart(msg tea.KeyMsg) (appTui.ScreenModel, tea.Cmd) {
 		if val == "" {
 			return m, nil
 		}
-		typ, number, name, _, _ := parser.ParseLine(val)
+		project, typ, number, name, _, _ := parser.ParseLine(val)
 		if typ == "" && number == "" && name == "" {
 			m.inputBar.Deactivate()
 			m.phase = phaseView
 			return m, flash("Could not parse. Use: Bug 123: Fix login")
 		}
 		date := fmt.Sprintf("%d/%d/%d", time.Now().Month(), time.Now().Day(), time.Now().Year())
-		_, err := m.tmr.Start(typ, number, name, date)
+		_, err := m.tmr.Start(project, typ, number, name, date)
 		if err != nil {
 			m.inputBar.Deactivate()
 			m.phase = phaseView
@@ -577,10 +792,11 @@ func (m *Model) updateTimerStart(msg tea.KeyMsg) (appTui.ScreenModel, tea.Cmd) {
 		}
 		// Add the task to CSV immediately so it appears in the table
 		task := model.Task{
-			Date:   date,
-			Type:   typ,
-			Number: number,
-			Name:   name,
+			Date:    date,
+			Type:    typ,
+			Number:  number,
+			Name:    name,
+			Project: project,
 		}
 		_ = m.repo.AddTask(task)
 		m.reload()
@@ -596,9 +812,10 @@ func (m *Model) updateTimerStart(msg tea.KeyMsg) (appTui.ScreenModel, tea.Cmd) {
 }
 
 var addFieldLabels = map[string]string{
-	"type":   "Type (Bug/Task)",
-	"number": "Number",
-	"name":   "Name",
+	"type":    "Type (Bug/Task)",
+	"number":  "Number",
+	"name":    "Name",
+	"project": "Project",
 }
 
 func (m *Model) updateAdding(msg tea.KeyMsg) (appTui.ScreenModel, tea.Cmd) {
@@ -650,6 +867,8 @@ func (m *Model) updateAddFill(msg tea.KeyMsg) (appTui.ScreenModel, tea.Cmd) {
 			task.Number = val
 		case "name":
 			task.Name = val
+		case "project":
+			task.Project = val
 		}
 
 		// Remove from missing
@@ -791,6 +1010,12 @@ func (m *Model) View() string {
 		stateLabel = " [TIMER]"
 	} else if m.phase == phaseFilter {
 		stateLabel = " [FILTER]"
+	} else if m.phase == phaseProjectFilter {
+		stateLabel = " [PROJECT]"
+	} else if m.projectFilter != "" && m.filterText != "" {
+		stateLabel = fmt.Sprintf(" [%s | filter: %s]", m.projectFilter, m.filterText)
+	} else if m.projectFilter != "" {
+		stateLabel = fmt.Sprintf(" [%s]", m.projectFilter)
 	} else if m.filterText != "" {
 		stateLabel = fmt.Sprintf(" [filter: %s]", m.filterText)
 	}
@@ -799,11 +1024,17 @@ func (m *Model) View() string {
 	if m.sortBy != "" {
 		sortHint = m.sortBy + " " + m.sortDir
 	}
-	viewHint := fmt.Sprintf("[a]dd [e]dit %s %s [n]ote | [d]aily [w]eekly [m]onthly | ← → nav | [f]ilter [s]ort(%s) [q]uit", m.timerHint(), m.workdayHint(), sortHint)
+	viewHint := fmt.Sprintf("[a]dd [e]dit %s %s [n]ote | [d]aily [w]eekly [m]onthly | ← → nav | [f]ilter [p]roject [s]ort(%s) [q]uit", m.timerHint(), m.workdayHint(), sortHint)
 	editHint := fmt.Sprintf("↑↓ row  ←→ col | Enter=edit [x]=delete | [s]ort(%s) [S]=flip | [e]/Esc=back", sortHint)
 	var hintLine string
 	if m.phase == phaseFilter {
 		hintLine = "Enter=keep filter | Esc=clear, Esc again=close"
+	} else if m.phase == phaseProjectFilter {
+		selected := "All"
+		if m.projectIdx < len(m.projectNames) {
+			selected = m.projectNames[m.projectIdx]
+		}
+		hintLine = fmt.Sprintf("Project: ▸ %s  |  ↑↓=select  Enter=apply  n=new  Escape=cancel", selected)
 	} else if isEdit {
 		hintLine = editHint
 	} else {
@@ -832,7 +1063,7 @@ func (m *Model) View() string {
 	}
 
 	if m.mode == "monthly" {
-		result := timeutil.FilterMonthByOffset(m.indexedAll, m.monthOffset)
+		result := timeutil.FilterMonthByOffset(m.tasksByProject(), m.monthOffset)
 		header.WriteString(appTui.TitleStyle.Render(fmt.Sprintf("Monthly Summary%s", stateLabel)) + "\n")
 		header.WriteString(noteLine)
 
@@ -866,8 +1097,13 @@ func (m *Model) View() string {
 				if localRow >= 0 && localRow < len(sorted) {
 					cfg.SelectedRow = localRow
 					if m.phase == phaseEditing && m.editInline {
-						cfg.EditingCell = true
-						cfg.EditView = m.editInput.View()
+						if m.editingProject {
+							cfg.EditingCell = true
+							cfg.EditView = m.renderInlineProjectPicker(table.ColWidth("project", w))
+						} else {
+							cfg.EditingCell = true
+							cfg.EditView = m.editInput.View()
+						}
 					}
 					if m.phase == phaseConfirmDelete {
 						cfg.ConfirmDeleteRow = localRow
@@ -879,7 +1115,7 @@ func (m *Model) View() string {
 			rowOffset += len(g.Tasks)
 		}
 	} else if m.mode == "weekly" {
-		result := timeutil.FilterWeekByOffset(m.indexedAll, m.weekOffset)
+		result := timeutil.FilterWeekByOffset(m.tasksByProject(), m.weekOffset)
 		header.WriteString(appTui.TitleStyle.Render(fmt.Sprintf("Weekly Summary%s", stateLabel)) + "\n")
 		header.WriteString(noteLine)
 
@@ -913,8 +1149,13 @@ func (m *Model) View() string {
 				if localRow >= 0 && localRow < len(sorted) {
 					cfg.SelectedRow = localRow
 					if m.phase == phaseEditing && m.editInline {
-						cfg.EditingCell = true
-						cfg.EditView = m.editInput.View()
+						if m.editingProject {
+							cfg.EditingCell = true
+							cfg.EditView = m.renderInlineProjectPicker(table.ColWidth("project", w))
+						} else {
+							cfg.EditingCell = true
+							cfg.EditView = m.editInput.View()
+						}
 					}
 					if m.phase == phaseConfirmDelete {
 						cfg.ConfirmDeleteRow = localRow
@@ -935,9 +1176,10 @@ func (m *Model) View() string {
 
 		if m.dailyIdx < len(m.dailyGroups) {
 			g := m.dailyGroups[m.dailyIdx]
+			totalHours := sumHours(m.displayed)
 			header.WriteString(appTui.PromptStyle.Render(
-				fmt.Sprintf("%s — %.1fh total (%d tasks)", g.Key, g.Total, len(g.Tasks))))
-			header.WriteString(" " + appTui.RemainingLabel(g.Total, 8) + " " + appTui.ProgressBar(g.Total, 8, 10))
+				fmt.Sprintf("%s — %.1fh total (%d tasks)", g.Key, totalHours, len(m.displayed))))
+			header.WriteString(" " + appTui.RemainingLabel(totalHours, 8) + " " + appTui.ProgressBar(totalHours, 8, 10))
 			if g.Key == timeutil.TodayStr() {
 				header.WriteString(workdayTag)
 			}
@@ -956,8 +1198,13 @@ func (m *Model) View() string {
 		if isEdit {
 			cfg.SelectedRow = m.selectedRow
 			if m.phase == phaseEditing && m.editInline {
-				cfg.EditingCell = true
-				cfg.EditView = m.editInput.View()
+				if m.editingProject {
+					cfg.EditingCell = true
+					cfg.EditView = m.renderInlineProjectPicker(table.ColWidth("project", w))
+				} else {
+					cfg.EditingCell = true
+					cfg.EditView = m.editInput.View()
+				}
 			}
 			if m.phase == phaseConfirmDelete {
 				cfg.ConfirmDeleteRow = m.selectedRow
@@ -966,7 +1213,6 @@ func (m *Model) View() string {
 		}
 		body.WriteString(table.Render(m.displayed, cfg) + "\n")
 	}
-
 
 	bodyStr := body.String()
 
@@ -1178,6 +1424,8 @@ func getField(t model.Task, col string) string {
 		return t.Name
 	case "timeSpent":
 		return t.TimeSpent
+	case "project":
+		return t.Project
 	case "comments":
 		return t.Comments
 	}
@@ -1205,6 +1453,7 @@ func filterTasks(tasks []model.IndexedTask, text string) []model.IndexedTask {
 			strings.Contains(strings.ToLower(t.Number), lower) ||
 			strings.Contains(strings.ToLower(t.Name), lower) ||
 			strings.Contains(strings.ToLower(t.TimeSpent), lower) ||
+			strings.Contains(strings.ToLower(t.Project), lower) ||
 			strings.Contains(strings.ToLower(t.Comments), lower) {
 			out = append(out, t)
 		}
@@ -1228,7 +1477,7 @@ func (m *Model) timerRowIndex(tasks []model.IndexedTask) int {
 		return -1
 	}
 	for i, t := range tasks {
-		if status.Matches(t.Type, t.Number, t.Name, t.Date) {
+		if status.Matches(t.Type, t.Number, t.Name, t.Date, t.Project) {
 			return i
 		}
 	}

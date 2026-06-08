@@ -1,7 +1,7 @@
 package model
 
 // Headers is the CSV column order.
-var Headers = []string{"date", "type", "number", "name", "timeSpent", "comments"}
+var Headers = []string{"date", "type", "number", "name", "timeSpent", "project", "comments"}
 
 // Task represents a single work entry.
 type Task struct {
@@ -10,6 +10,7 @@ type Task struct {
 	Number    string
 	Name      string
 	TimeSpent string
+	Project   string // comma-separated project names
 	Comments  string
 }
 

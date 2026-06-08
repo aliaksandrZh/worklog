@@ -52,26 +52,30 @@ Navigate with arrow keys + Enter, or press shortcut keys:
 
 - **(a) Add Task** — sequential form (Backspace on empty field goes back, Escape cancels)
 - **(p) Paste Tasks** — type/paste a task line, parser extracts fields and prompts for anything missing
-- **(s) View Summary** — daily/weekly summaries with date navigation
+- **(s) View Summary** — daily/weekly summaries with date navigation and project filtering
 - **(t) Start/Stop Timer** — type a task line to start timing; stop saves with elapsed time
 - **(q) Exit**
 
 ### View Summary
 
-- **d** / **w** — switch between daily and weekly view
+- **d** / **w** / **m** — switch between daily, weekly, and monthly view
 - **←** / **→** — navigate between periods
-- **s** — cycle sort column (date, type, number, name, time)
+- **s** — cycle sort column (date, type, number, name, time, project)
 - **S** — flip sort direction (asc/desc)
 - **e** — enter edit mode
+- **f** — filter tasks by text (matches all fields)
+- **p** — filter by project (inline picker with `↑↓` select, `Enter` apply, `n` new)
 - **Esc** — go back
 
 ### Edit Mode (in Summary)
 
 - **↑↓** — select row
 - **←→** — select column
-- **Enter** — edit the selected cell inline
+- **↑↓** — select row
+- **←→** — select column
+- **Enter** — edit the selected cell inline (project column shows inline dropdown)
 - **x** — delete the selected task (with y/n confirmation)
-- **Esc** — exit edit mode
+- **Esc** / **e** — exit edit mode
 
 ### Timer
 
@@ -104,6 +108,7 @@ Tasks are stored in `tasks.csv` (auto-created on first run) in the data director
 | number    | Task/ticket number             |
 | name      | Short description              |
 | timeSpent | Duration (e.g. 1h, 30m)        |
+| project   | Comma-separated project tags   |
 | comments  | Optional notes                 |
 
 ## Paste Format
@@ -111,12 +116,13 @@ Tasks are stored in `tasks.csv` (auto-created on first run) in the data director
 The parser is lenient — it extracts what it can and prompts for the rest:
 
 ```
-Bug 12345: Fix login page redirect 1h 30m
-Task 67890: Update API docs 45m
+[Job] Bug 12345: Fix login page redirect 1h 30m
+[Personal] Task 67890: Update API docs 45m
 Pull Request 19082: Bug 31601: Fix date filter 1.5
 ```
 
 Recognized patterns:
+- **Project** — `[ProjectName]` at start of line (e.g. `[Job]`, `[Personal]`)
 - **Type** — `Bug`, `Task` at start of line (color-coded: Bug=red, Task=yellow)
 - **Number** — `123`, `#123`, `123:`
 - **Time** — `1h`, `30m`, `1h 30m`, or bare number like `1.5` (treated as hours)
@@ -141,19 +147,19 @@ src/
     store/                  # CSV CRUD (Load, Save, Add, Update, Delete)
     parser/                 # Lenient parser (patterns + pipeline)
     timer/                  # .timer.json persistence
-    prefs/                  # .prefs.json persistence
+    prefs/                  # .prefs.json persistence (sort, project filter)
     timeutil/               # ParseTime, ParseDate, GroupByDate, etc.
     format/                 # Pad, column width constants
+    workday/                # Workday timer persistence
+    note/                   # Daily notes persistence
     update/                 # Git-based update check
   tui/
     app.go                  # Root model (screen router, flash, timer tick)
     styles.go               # Lip Gloss styles
     messages.go             # Screen enum, message types
+    inputbar/               # Bottom input bar with hints
     table/                  # Reusable table renderer
-    addtask/                # Sequential 6-field form
-    paste/                  # 3-phase: input → fill → preview
-    summary/                # Daily/weekly view + inline edit mode
-    timerstart/             # Single input for timer
+    summary/                # Daily/weekly/monthly view + inline edit mode
 ```
 
 ## Tech Stack

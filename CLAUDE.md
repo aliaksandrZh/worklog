@@ -41,8 +41,14 @@ task-tracker/
 │   │   │   ├── timer.go             # Timer persistence (.timer.json) for start/stop/status
 │   │   │   └── timer_test.go
 │   │   ├── prefs/
-│   │   │   ├── prefs.go             # User preferences persistence (.prefs.json) for sort settings
+│   │   │   ├── prefs.go             # User preferences persistence (.prefs.json) for sort and project filter
 │   │   │   └── prefs_test.go
+│   │   ├── workday/
+│   │   │   ├── workday.go           # Workday timer with auto-fill time on task add
+│   │   │   └── workday_test.go
+│   │   ├── note/
+│   │   │   ├── note.go              # Daily notes persistence
+│   │   │   └── note_test.go
 │   │   └── update/
 │   │       └── update.go            # Async git fetch to check for updates
 │   └── tui/
@@ -68,7 +74,7 @@ task-tracker/
 
 File: `tasks.csv` (auto-created on first run, gitignored)
 
-Columns: `date,type,number,name,timeSpent,comments`
+Columns: `date,type,number,name,timeSpent,project,comments`
 
 ## Architecture
 
@@ -78,19 +84,20 @@ Root Bubble Tea model. Manages screen routing via `ScreenModel` interface, flash
 
 ### Summary Screen (`src/tui/summary/summary.go`)
 
-The main screen with multiple phases: `view`, `select`, `editing`, `confirmDelete`, `filter`, `adding`, `addFill`, `timerStart`. Supports daily/weekly/monthly views with date navigation, task add/edit/delete, filtering, sorting, and timer start.
+The main screen with multiple phases: `view`, `select`, `editing`, `confirmDelete`, `filter`, `adding`, `addFill`, `timerStart`, `projectFilter`. Supports daily/weekly/monthly views with date navigation, task add/edit/delete, filtering, sorting, project filtering, and timer start.
 
 ### Parser (`src/internal/parser/parser.go`)
 
 Lenient, field-by-field extraction pipeline. Each field has its own pattern array:
 
+- `ProjectPattern` — `[ProjectName]` prefix at start of line
 - `DatePatterns` — standalone date lines (`M/D/YYYY`, `YYYY-MM-DD`)
 - `TypePatterns` — task type at start of line (`Bug`, `Task`)
 - `NumberPatterns` — task number (`123`, `#123`, `123:`)
 - `TimePatterns` — time at end of line (`1h`, `30m`, `1h 30m`)
 - `PrefixPattern` — strips "Pull Request XXXXX:" into comments
 
-Pipeline: type → number → time → name (whatever remains). Unknown fields are reported in a `Missing` slice so the UI can prompt the user.
+Pipeline: project → type → number → time → name (whatever remains). Unknown fields are reported in a `Missing` slice so the UI can prompt the user. Tasks can belong to multiple comma-separated projects.
 
 ### Store (`src/internal/store/store.go`)
 
@@ -110,7 +117,15 @@ Time parsing and date utilities: `ParseTime`, `ParseDate`, `GetWeekBounds`, `For
 
 ### Prefs (`src/internal/prefs/prefs.go`)
 
-Persists user preferences (sort column, sort direction) to `.prefs.json`.
+Persists user preferences (sort column, sort direction, project filter) to `.prefs.json`.
+
+### Workday (`src/internal/workday/workday.go`)
+
+Workday timer with start/stop and auto-fill time on task add. Persists to `.workday.json`.
+
+### Note (`src/internal/note/note.go`)
+
+Daily notes persistence. Stores a single text note per day in `.note.json`.
 
 ### Update (`src/internal/update/update.go`)
 
@@ -134,6 +149,8 @@ Tests use Go's built-in `testing` package, run via `go test ./...`.
 - `format_test.go` — Pad, column width tests
 - `timer_test.go` — timer start/stop/status tests
 - `prefs_test.go` — preferences persistence tests
+- `workday_test.go` — workday timer tests
+- `note_test.go` — note persistence tests
 - `inputbar_test.go` — input bar component tests
 - `table_test.go` — table rendering tests
 - `add_test.go` — add task flow tests
@@ -148,6 +165,9 @@ Tests use Go's built-in `testing` package, run via `go test ./...`.
 - Parser is lenient by design: extracts what it can, prompts for the rest
 - `timeSpent` is always optional (not prompted during fill phase)
 - Date defaults to today if no date line is provided
+- Project is parsed from `[ProjectName]` prefix; tasks support multiple comma-separated projects
+- Global project filter (`p`) and inline cell project picker both use compact `▸` style — no modal overlay
+- Project list is always rebuilt from task data; no separate `.projects.json` store
 - Each pattern group is a separate exported array for easy expansion
 - `ScreenFactory` pattern avoids import cycles between `cmd` and `tui` packages
-- Single summary screen handles all modes (view, add, edit, delete, filter, timer) via phase state machine
+- Single summary screen handles all modes (view, add, edit, delete, filter, timer, project) via phase state machine

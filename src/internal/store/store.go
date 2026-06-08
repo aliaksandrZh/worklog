@@ -88,6 +88,7 @@ func sanitizeTask(task model.Task) model.Task {
 	task.Number = sanitizeField(task.Number)
 	task.Name = sanitizeField(task.Name)
 	task.TimeSpent = sanitizeField(task.TimeSpent)
+	task.Project = sanitizeField(task.Project)
 	task.Comments = sanitizeField(task.Comments)
 	return task
 }
@@ -166,6 +167,13 @@ func (s *CSVStore) LoadTasks() ([]model.Task, error) {
 		if idx, ok := colIndex["timeSpent"]; ok && idx < len(row) {
 			t.TimeSpent = strings.TrimSpace(row[idx])
 		}
+		if idx, ok := colIndex["project"]; ok && idx < len(row) {
+			project := strings.TrimSpace(row[idx])
+			if strings.EqualFold(project, "all") {
+				project = ""
+			}
+			t.Project = project
+		}
 		if idx, ok := colIndex["comments"]; ok && idx < len(row) {
 			t.Comments = strings.TrimSpace(row[idx])
 		}
@@ -185,7 +193,7 @@ func (s *CSVStore) SaveTasks(tasks []model.Task) error {
 	w := csv.NewWriter(f)
 	_ = w.Write(model.Headers)
 	for _, t := range tasks {
-		_ = w.Write([]string{t.Date, t.Type, t.Number, t.Name, t.TimeSpent, t.Comments})
+		_ = w.Write([]string{t.Date, t.Type, t.Number, t.Name, t.TimeSpent, t.Project, t.Comments})
 	}
 	w.Flush()
 	return w.Error()
@@ -236,6 +244,8 @@ func (s *CSVStore) UpdateTask(index int, updates map[string]string) error {
 			t.Name = v
 		case "timeSpent":
 			t.TimeSpent = v
+		case "project":
+			t.Project = v
 		case "comments":
 			t.Comments = v
 		}

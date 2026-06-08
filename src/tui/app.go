@@ -211,7 +211,7 @@ func (a App) findTimerTask(status *timer.TimerStatus) (int, model.Task) {
 	}
 	for i, t := range tasks {
 		if status.Type == t.Type && status.Number == t.Number &&
-			status.Name == t.Name && status.Date == t.Date {
+			status.Name == t.Name && status.Date == t.Date && status.Project == t.Project {
 			return i, t
 		}
 	}

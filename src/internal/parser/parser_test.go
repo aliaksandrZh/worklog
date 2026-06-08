@@ -5,7 +5,10 @@ import (
 )
 
 func TestParseLine_Full(t *testing.T) {
-	typ, number, name, timeSpent, comments := ParseLine("Bug 123: Fix login 1h")
+	project, typ, number, name, timeSpent, comments := ParseLine("Bug 123: Fix login 1h")
+	if project != "" {
+		t.Errorf("project = %q, want empty", project)
+	}
 	if typ != "Bug" {
 		t.Errorf("type = %q, want Bug", typ)
 	}
@@ -24,25 +27,25 @@ func TestParseLine_Full(t *testing.T) {
 }
 
 func TestParseLine_TaskType(t *testing.T) {
-	typ, _, _, _, _ := ParseLine("Task 456: Add feature 2h")
+	_, typ, _, _, _, _ := ParseLine("Task 456: Add feature 2h")
 	if typ != "Task" {
 		t.Errorf("type = %q, want Task", typ)
 	}
 }
 
 func TestParseLine_CaseInsensitive(t *testing.T) {
-	typ, _, _, _, _ := ParseLine("bug 123: Fix 1h")
+	_, typ, _, _, _, _ := ParseLine("bug 123: Fix 1h")
 	if typ != "Bug" {
 		t.Errorf("type = %q, want Bug", typ)
 	}
-	typ, _, _, _, _ = ParseLine("TASK 456: Fix 1h")
+	_, typ, _, _, _, _ = ParseLine("TASK 456: Fix 1h")
 	if typ != "Task" {
 		t.Errorf("type = %q, want Task", typ)
 	}
 }
 
 func TestParseLine_NoTime(t *testing.T) {
-	_, _, name, timeSpent, _ := ParseLine("Bug 123: Fix login")
+	_, _, _, name, timeSpent, _ := ParseLine("Bug 123: Fix login")
 	if name != "Fix login" {
 		t.Errorf("name = %q", name)
 	}
@@ -52,35 +55,35 @@ func TestParseLine_NoTime(t *testing.T) {
 }
 
 func TestParseLine_CompoundTime(t *testing.T) {
-	_, _, _, timeSpent, _ := ParseLine("Bug 123: Fix login 1h 30m")
+	_, _, _, _, timeSpent, _ := ParseLine("Bug 123: Fix login 1h 30m")
 	if timeSpent != "1h 30m" {
 		t.Errorf("timeSpent = %q, want 1h 30m", timeSpent)
 	}
 }
 
 func TestParseLine_BareNumber(t *testing.T) {
-	_, _, _, timeSpent, _ := ParseLine("Bug 123: Fix login 1.5")
+	_, _, _, _, timeSpent, _ := ParseLine("Bug 123: Fix login 1.5")
 	if timeSpent != "1.5h" {
 		t.Errorf("timeSpent = %q, want 1.5h", timeSpent)
 	}
 }
 
 func TestParseLine_MinutesOnly(t *testing.T) {
-	_, _, _, timeSpent, _ := ParseLine("Bug 123: Fix login 30m")
+	_, _, _, _, timeSpent, _ := ParseLine("Bug 123: Fix login 30m")
 	if timeSpent != "30m" {
 		t.Errorf("timeSpent = %q, want 30m", timeSpent)
 	}
 }
 
 func TestParseLine_HashNumber(t *testing.T) {
-	_, number, _, _, _ := ParseLine("Bug #123: Fix login 1h")
+	_, _, number, _, _, _ := ParseLine("Bug #123: Fix login 1h")
 	if number != "123" {
 		t.Errorf("number = %q, want 123", number)
 	}
 }
 
 func TestParseLine_PRPrefix(t *testing.T) {
-	typ, number, name, _, comments := ParseLine("Pull Request 99999: Bug 123: Fix login 1h")
+	_, typ, number, name, _, comments := ParseLine("Pull Request 99999: Bug 123: Fix login 1h")
 	if comments != "Pull Request 99999" {
 		t.Errorf("comments = %q, want Pull Request 99999", comments)
 	}
@@ -92,6 +95,43 @@ func TestParseLine_PRPrefix(t *testing.T) {
 	}
 	if name != "Fix login" {
 		t.Errorf("name = %q", name)
+	}
+}
+
+func TestParseLine_ProjectPrefix(t *testing.T) {
+	project, typ, number, name, timeSpent, _ := ParseLine("[Job] Bug 123: Fix login 1h")
+	if project != "Job" {
+		t.Errorf("project = %q, want Job", project)
+	}
+	if typ != "Bug" {
+		t.Errorf("type = %q, want Bug", typ)
+	}
+	if number != "123" {
+		t.Errorf("number = %q, want 123", number)
+	}
+	if name != "Fix login" {
+		t.Errorf("name = %q, want Fix login", name)
+	}
+	if timeSpent != "1h" {
+		t.Errorf("timeSpent = %q, want 1h", timeSpent)
+	}
+}
+
+func TestParseLine_ProjectWithSpaces(t *testing.T) {
+	project, _, _, _, _, _ := ParseLine("[My Project] Bug 123: Fix 1h")
+	if project != "My Project" {
+		t.Errorf("project = %q, want My Project", project)
+	}
+}
+
+func TestParsePastedText_Project(t *testing.T) {
+	text := "[Job] Bug 123: Fix login 1h"
+	tasks := ParsePastedText(text)
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(tasks))
+	}
+	if tasks[0].Project != "Job" {
+		t.Errorf("project = %q, want Job", tasks[0].Project)
 	}
 }
 

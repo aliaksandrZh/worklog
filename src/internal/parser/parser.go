@@ -23,6 +23,9 @@ var DatePatterns = []*regexp.Regexp{
 // PrefixPattern matches "Pull Request XXXXX:" at start of line.
 var PrefixPattern = regexp.MustCompile(`(?i)^Pull\s+Request\s+\d+\s*:\s*`)
 
+// ProjectPattern matches [ProjectName] at the start of a line.
+var ProjectPattern = regexp.MustCompile(`^\[([^\]]+)\]\s*`)
+
 // TypePatterns extracts task type (Bug, Task).
 var TypePatterns = []PatternDef{
 	{Re: regexp.MustCompile(`(?i)^(Bug|Task)\b`), Extract: func(m []string) string { return m[1] }},
@@ -59,8 +62,14 @@ func normalizeType(t string) string {
 }
 
 // ParseLine parses a single task line into fields.
-func ParseLine(line string) (typ, number, name, timeSpent, comments string) {
+func ParseLine(line string) (project, typ, number, name, timeSpent, comments string) {
 	remaining := line
+
+	// Extract project prefix [ProjectName]
+	if m := ProjectPattern.FindStringSubmatch(remaining); m != nil {
+		project = strings.TrimSpace(m[1])
+		remaining = strings.TrimSpace(remaining[len(m[0]):])
+	}
 
 	// Strip "Pull Request XXXXX:" prefix, save to comments
 	if loc := PrefixPattern.FindStringIndex(remaining); loc != nil {
@@ -129,7 +138,7 @@ func ParsePastedText(text string) []model.ParsedTask {
 			continue
 		}
 
-		typ, number, name, timeSpent, comments := ParseLine(line)
+		project, typ, number, name, timeSpent, comments := ParseLine(line)
 
 		var missing []string
 		if currentDate == "" {
@@ -160,6 +169,7 @@ func ParsePastedText(text string) []model.ParsedTask {
 				Number:    number,
 				Name:      name,
 				TimeSpent: timeSpent,
+				Project:   project,
 				Comments:  comments,
 			},
 			Missing: missing,

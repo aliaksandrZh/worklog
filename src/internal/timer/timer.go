@@ -11,6 +11,7 @@ import (
 
 // TimerData represents a running timer persisted to .timer.json.
 type TimerData struct {
+	Project   string `json:"project"`
 	Type      string `json:"type"`
 	Number    string `json:"number"`
 	Name      string `json:"name"`
@@ -69,8 +70,8 @@ func FormatElapsedDecimal(ms int64) string {
 }
 
 // Matches returns true if the timer data matches the given task fields.
-func (d *TimerData) Matches(typ, number, name, date string) bool {
-	return d.Type == typ && d.Number == number && d.Name == name && d.Date == date
+func (d *TimerData) Matches(typ, number, name, date, project string) bool {
+	return d.Type == typ && d.Number == number && d.Name == name && d.Date == date && d.Project == project
 }
 
 func nowMs() int64 {
@@ -78,11 +79,12 @@ func nowMs() int64 {
 }
 
 // Start begins a new timer. Errors if one is already running.
-func (t *Timer) Start(typ, number, name, date string) (*TimerData, error) {
+func (t *Timer) Start(project, typ, number, name, date string) (*TimerData, error) {
 	if _, err := os.Stat(t.path()); err == nil {
 		return nil, fmt.Errorf("Timer already running. Stop it first with: tt stop")
 	}
 	data := &TimerData{
+		Project:   project,
 		Type:      typ,
 		Number:    number,
 		Name:      name,
